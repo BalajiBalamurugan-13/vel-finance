@@ -32,5 +32,5 @@ def get_today_expense():
     return {
         "date": today,
         "total_expense": total_expense,
-        "expenses": expenses
+        "expensess": expenses
     }
