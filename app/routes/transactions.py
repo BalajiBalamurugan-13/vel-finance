@@ -332,40 +332,17 @@ def outstanding_by_type():
 @router.get("/profit-summary")
 def profit_summary():
     try:
-        customers_res = supabase.table("customers") \
-            .select("customer_id, net_given") \
-            .execute()
+        res = supabase.rpc("get_profit_summary").execute()
 
-        customers = customers_res.data or []
-
-        total_given = 0
-        total_collected = 0
-
-        for c in customers:
-            cid = c.get("customer_id")
-            net_given = c.get("net_given", 0) or 0
-
-            txn_res = supabase.table("transactions") \
-                .select("amount_paid") \
-                .eq("customer_id", cid) \
-                .execute()
-
-            txn_data = txn_res.data or []
-
-            paid = sum(t.get("amount_paid", 0) or 0 for t in txn_data)
-
-            total_given += net_given
-            total_collected += paid
-
-        profit = total_collected - total_given
+        if res.data:
+            return res.data[0]
 
         return {
-            "total_given": total_given,
-            "total_collected": total_collected,
-            "profit": profit
+            "total_given": 0,
+            "total_collected": 0,
+            "profit": 0
         }
 
     except Exception as e:
         return {"error": str(e)}
-
 

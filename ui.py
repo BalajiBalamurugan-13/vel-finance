@@ -495,7 +495,11 @@ if page == "Business Summary":
 
     st.markdown("## 📊 Business Summary")
 
-    data = fetch_with_retry(f"{API_BASE}/transactions/profit-summary")
+    @st.cache_data(ttl=60)
+    def get_profit_summary():
+        return fetch_with_retry(f"{API_BASE}/transactions/profit-summary")
+
+    data = get_profit_summary()
     if not data:
         st.error("Failed to load data")
         st.stop()
