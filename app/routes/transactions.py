@@ -10,7 +10,20 @@ router = APIRouter(prefix="/transactions", tags=["Transactions"])
 def add_transaction(data: TransactionCreate):
     transaction = data.dict()
 
+    # 1️⃣ Insert transaction (existing logic)
     res = supabase.table("transactions").insert(transaction).execute()
+
+    # 2️⃣ ADD THIS BLOCK (NEW — cash tracking)
+    try:
+        supabase.table("cashbook").insert({
+            "amount": data.amount_paid,
+            "type": "credit",
+            "source": "collection",
+            "reference_id": str(data.customer_id)
+        }).execute()
+    except Exception as e:
+        print("Cashbook error:", e)
+
     return res.data
 
 
@@ -355,5 +368,30 @@ def profit_by_category():
             return res.data
 
         return []
+    except Exception as e:
+        return {"error": str(e)}
+    
+@router.get("/cash-balance")
+def get_cash_balance():
+    try:
+        res = supabase.table("cashbook").select("*").execute()
+        data = res.data or []
+
+        total_credit = sum(
+            x.get("amount", 0) for x in data if x.get("type") == "credit"
+        )
+
+        total_debit = sum(
+            x.get("amount", 0) for x in data if x.get("type") == "debit"
+        )
+
+        balance = total_credit - total_debit
+
+        return {
+            "cash_balance": balance,
+            "total_credit": total_credit,
+            "total_debit": total_debit
+        }
+
     except Exception as e:
         return {"error": str(e)}

@@ -9,7 +9,19 @@ router = APIRouter(prefix="/expenses", tags=["Expenses"])
 def add_expense(data: ExpenseCreate):
     expense = data.dict()
 
+    # 1️⃣ existing logic
     res = supabase.table("expenses").insert(expense).execute()
+
+    # 2️⃣ ADD THIS (NEW)
+    try:
+        supabase.table("cashbook").insert({
+            "amount": data.amount,
+            "type": "debit",
+            "source": "expense"
+        }).execute()
+    except Exception as e:
+        print("Cashbook expense error:", e)
+
     return res.data
 
 

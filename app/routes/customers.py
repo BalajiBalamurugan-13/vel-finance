@@ -7,9 +7,37 @@ router = APIRouter(prefix="/customers", tags=["Customers"])
 
 @router.post("/add")
 def add_customer(data: CustomerCreate):
+
     customer = data.dict()
+    loan_amount = customer.get("net_given") or 0
+    interest = customer.get("interest") or 0
+
+    if loan_amount <= 0:
+        return {"error": "Loan amount must be greater than 0"}
+
+    actual_given = loan_amount - interest
+
+    if actual_given < 0:
+        return {"error": "Interest cannot be greater than loan amount"}
+
+    customer["net_given"] = actual_given
+    customer["loan_amount"] = loan_amount
 
     res = supabase.table("customers").insert(customer).execute()
+
+    try:
+        inserted_customer = res.data[0] if res.data else {}
+
+        supabase.table("cashbook").insert({
+            "amount": actual_given,
+            "type": "debit",
+            "source": "loan",
+            "reference_id": str(inserted_customer.get("customer_id"))
+        }).execute()
+
+    except Exception as e:
+        print("Cashbook loan error:", e)
+
     return res.data
 
 
