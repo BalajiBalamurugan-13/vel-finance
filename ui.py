@@ -106,7 +106,12 @@ else:
 # ================= DASHBOARD =================
 if page == "Dashboard":
     st.markdown("## 📊 Today Summary")
+    st.markdown("## 💰 Cash Status")
 
+    cash = fetch_with_retry(f"{API_BASE}/transactions/cash-balance")
+
+    if cash:
+        st.metric("💰 Available Cash", f"₹{cash.get('cash_balance', 0)}")
     with st.spinner("Loading data..."):
         data = fetch_with_retry(f"{API_BASE}/transactions/dashboard")
 

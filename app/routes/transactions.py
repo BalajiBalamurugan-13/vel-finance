@@ -377,18 +377,13 @@ def get_cash_balance():
         res = supabase.table("cashbook").select("*").execute()
         data = res.data or []
 
-        total_credit = sum(
-            x.get("amount", 0) for x in data if x.get("type") == "credit"
-        )
+        total_credit = sum(int(x.get("amount", 0)) for x in data if x.get("type") == "credit")
+        total_debit = sum(int(x.get("amount", 0)) for x in data if x.get("type") == "debit")
 
-        total_debit = sum(
-            x.get("amount", 0) for x in data if x.get("type") == "debit"
-        )
-
-        balance = total_credit - total_debit
+        cash_balance = total_credit - total_debit
 
         return {
-            "cash_balance": balance,
+            "cash_balance": cash_balance,
             "total_credit": total_credit,
             "total_debit": total_debit
         }
