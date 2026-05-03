@@ -355,6 +355,5 @@ def profit_by_category():
             return res.data
 
         return []
-
     except Exception as e:
         return {"error": str(e)}

@@ -500,6 +500,7 @@ if page == "Business Summary":
         return fetch_with_retry(f"{API_BASE}/transactions/profit-summary")
 
     data = get_profit_summary()
+
     if not data:
         st.error("Failed to load data")
         st.stop()
@@ -514,12 +515,25 @@ if page == "Business Summary":
     col2.metric("💰 Total Collected", f"₹{data.get('total_collected', 0)}")
     col3.metric("📈 Profit", f"₹{data.get('profit', 0)}")
 
-res = requests.get(f"{API_BASE}/transactions/profit-by-category")
+    st.divider()
 
-if res.status_code == 200:
-    data = res.json()
+    # ✅ CATEGORY PROFIT (FIXED POSITION)
+    st.markdown("### 📊 Profit by Category")
 
-    for item in data:
-        st.write(f"{item['category']} → ₹{item['profit']}")
-else:
-    st.error("Failed to load category data")
+    res = fetch_with_retry(f"{API_BASE}/transactions/profit-by-category")
+
+    if not res:
+        st.error("Failed to load category data")
+    else:
+        col1, col2, col3 = st.columns(3)
+
+        for item in res:
+            category = item.get("category", "Unknown")
+            profit = item.get("profit", 0)
+
+            if category == "Furniture":
+                col1.metric("🪑 Furniture", f"₹{profit}")
+            elif category == "DL":
+                col2.metric("📦 DL", f"₹{profit}")
+            elif category == "DPL":
+                col3.metric("🏢 DPL", f"₹{profit}")
