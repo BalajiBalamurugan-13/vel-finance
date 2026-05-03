@@ -42,7 +42,7 @@ API_BASE = "https://vel-finance-api.onrender.com"
 # 🔥 WARMUP
 def warmup():
     try:
-        requests.get(f"{API_BASE}/health", timeout=5)
+        requests.get(f"{API_BASE}/health", timeout=15)
     except:
         pass
 
@@ -53,19 +53,16 @@ warmup()
 # ================= HELPERS =================
 
 def fetch_with_retry(url):
-    for _ in range(2):  # retry once
+    for _ in range(3):  # try 3 times
         try:
-            res = requests.get(url, timeout=10)
-
-            print("STATUS:", res.status_code)
-            print("RESPONSE:", res.text)
+            res = requests.get(url, timeout=30)
 
             if res.status_code == 200:
                 return res.json()
 
         except Exception as e:
             print("ERROR:", e)
-            time.sleep(2)
+            time.sleep(3)
 
     return None
 
