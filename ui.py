@@ -520,20 +520,27 @@ if page == "Business Summary":
     # ✅ CATEGORY PROFIT (FIXED POSITION)
     st.markdown("### 📊 Profit by Category")
 
-    res = fetch_with_retry(f"{API_BASE}/transactions/profit-by-category")
+    data = fetch_with_retry(f"{API_BASE}/transactions/profit-by-category")
 
-    if not res:
+    if not data:
         st.error("Failed to load category data")
     else:
-        col1, col2, col3 = st.columns(3)
+        cols = st.columns(len(data))
 
-        for item in res:
+        for i, item in enumerate(data):
             category = item.get("category", "Unknown")
+            given = item.get("total_given", 0)
+            collected = item.get("total_collected", 0)
             profit = item.get("profit", 0)
 
-            if category == "Furniture":
-                col1.metric("🪑 Furniture", f"₹{profit}")
-            elif category == "DL":
-                col2.metric("📦 DL", f"₹{profit}")
-            elif category == "DPL":
-                col3.metric("🏢 DPL", f"₹{profit}")
+            # 🔥 Color logic
+            color = "red" if profit < 0 else "green"
+
+            with cols[i]:
+                st.markdown(f"### {category}")
+                st.metric("💸 Given", f"₹{given}")
+                st.metric("💰 Collected", f"₹{collected}")
+                st.markdown(
+                    f"<h3 style='color:{color}'>Profit: ₹{profit}</h3>",
+                    unsafe_allow_html=True
+                )
