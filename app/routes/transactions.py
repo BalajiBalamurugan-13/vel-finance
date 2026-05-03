@@ -331,34 +331,42 @@ def outstanding_by_type():
 
 @router.get("/profit-summary")
 def profit_summary():
-
-    customers_res = supabase.table("customers").select("customer_id, net_given").execute()
-    customers = customers_res.data
-
-    total_given = 0
-    total_collected = 0
-
-    for c in customers:
-        cid = c["customer_id"]
-        net_given = c.get("net_given", 0) or 0
-
-        txn_res = supabase.table("transactions") \
-            .select("amount_paid") \
-            .eq("customer_id", cid) \
+    try:
+        customers_res = supabase.table("customers") \
+            .select("customer_id, net_given") \
             .execute()
 
-        paid = sum(t.get("amount_paid", 0) for t in txn_res.data)
+        customers = customers_res.data or []
 
-        total_given += net_given
-        total_collected += paid
+        total_given = 0
+        total_collected = 0
 
-    profit = total_collected - total_given
+        for c in customers:
+            cid = c.get("customer_id")
+            net_given = c.get("net_given", 0) or 0
 
-    return {
-        "total_given": total_given,
-        "total_collected": total_collected,
-        "profit": profit
-    }
+            txn_res = supabase.table("transactions") \
+                .select("amount_paid") \
+                .eq("customer_id", cid) \
+                .execute()
+
+            txn_data = txn_res.data or []
+
+            paid = sum(t.get("amount_paid", 0) or 0 for t in txn_data)
+
+            total_given += net_given
+            total_collected += paid
+
+        profit = total_collected - total_given
+
+        return {
+            "total_given": total_given,
+            "total_collected": total_collected,
+            "profit": profit
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @router.get("/health")
