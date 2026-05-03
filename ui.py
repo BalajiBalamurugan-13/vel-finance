@@ -83,7 +83,8 @@ page = st.sidebar.selectbox("Menu", [
     "Add Customer",
     "Add Payment",
     "Add Expense",
-    "History"   # 👈 ADD THIS
+    "History",
+    "Outstanding Summary" 
 ])
 
 st.title("💰 VEL Finance Dashboard")
@@ -461,3 +462,25 @@ if page == "History":
     else:
         for e in data["expenses"]:
             st.write(f"₹{e.get('amount', 0)} → {e.get('note', '-')}")
+
+# ================= OUTSTANDING SUMMARY =================
+if page == "Outstanding Summary":
+
+    st.markdown("## 💰 Outstanding by Category")
+
+    data = fetch_with_retry(f"{API_BASE}/transactions/outstanding-by-type")
+
+    if not data:
+        st.error("Failed to load data")
+        st.stop()
+
+    if "error" in data:
+        st.error(data["error"])
+        st.stop()
+
+    col1, col2, col3, col4 = st.columns(4)
+
+    col1.metric("🪑 Furniture", f"₹{data.get('Furniture', 0)}")
+    col2.metric("📦 DL", f"₹{data.get('DL', 0)}")
+    col3.metric("🏢 DPL", f"₹{data.get('DPL', 0)}")
+    col4.metric("💰 Total", f"₹{data.get('Total', 0)}")

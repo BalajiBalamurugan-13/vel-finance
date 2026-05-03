@@ -309,4 +309,43 @@ def get_dashboard():
         return {"error": str(e)}
 
 
+@router.get("/outstanding-by-type")
+def outstanding_by_type():
 
+    try:
+        # 1. Get all customers
+        cust_res = supabase.table("customers").select("*").execute()
+        customers = cust_res.data or []
+
+        # 2. Get all transactions
+        txn_res = supabase.table("transactions").select("*").execute()
+        transactions = txn_res.data or []
+
+        # 3. Build paid map
+        paid_map = {}
+        for t in transactions:
+            cid = t.get("customer_id")
+            paid_map[cid] = paid_map.get(cid, 0) + (t.get("amount_paid", 0) or 0)
+
+        # 4. Group by type
+        result = {
+            "Furniture": 0,
+            "DL": 0,
+            "DPL": 0,
+            "Total": 0
+        }
+
+        for c in customers:
+            cid = c.get("customer_id")
+            customer_type = c.get("type") or "DL"
+
+            paid = paid_map.get(cid, 0)
+            balance = (c.get("net_given") or 0) - paid
+
+            result[customer_type] += balance
+            result["Total"] += balance
+
+        return result
+
+    except Exception as e:
+        return {"error": str(e)}
