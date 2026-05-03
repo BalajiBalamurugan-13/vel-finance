@@ -513,3 +513,13 @@ if page == "Business Summary":
     col1.metric("💸 Total Given", f"₹{data.get('total_given', 0)}")
     col2.metric("💰 Total Collected", f"₹{data.get('total_collected', 0)}")
     col3.metric("📈 Profit", f"₹{data.get('profit', 0)}")
+
+res = requests.get(f"{API_BASE}/transactions/profit-by-category")
+
+if res.status_code == 200:
+    data = res.json()
+
+    for item in data:
+        st.write(f"{item['category']} → ₹{item['profit']}")
+else:
+    st.error("Failed to load category data")

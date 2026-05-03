@@ -346,3 +346,15 @@ def profit_summary():
     except Exception as e:
         return {"error": str(e)}
 
+@router.get("/profit-by-category")
+def profit_by_category():
+    try:
+        res = supabase.rpc("get_profit_by_category").execute()
+
+        if res.data:
+            return res.data
+
+        return []
+
+    except Exception as e:
+        return {"error": str(e)}
