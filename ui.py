@@ -84,7 +84,8 @@ page = st.sidebar.selectbox("Menu", [
     "Add Payment",
     "Add Expense",
     "History",
-    "Outstanding Summary" 
+    "Outstanding Summary",
+    "Business Summary"
 ])
 
 st.title("💰 VEL Finance Dashboard")
@@ -483,3 +484,25 @@ if page == "Outstanding Summary":
     col2.metric("📦 DL", f"₹{data.get('DL', 0)}")
     col3.metric("🏢 DPL", f"₹{data.get('DPL', 0)}")
     col4.metric("💰 Total", f"₹{data.get('Total', 0)}")
+
+
+    # ================= BUSINESS SUMMARY =================
+if page == "Business Summary":
+
+    st.markdown("## 📊 Business Summary")
+
+    data = fetch_with_retry(f"{API_BASE}/transactions/profit-summary")
+
+    if not data:
+        st.error("Failed to load data")
+        st.stop()
+
+    if "error" in data:
+        st.error(data["error"])
+        st.stop()
+
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric("💸 Total Given", f"₹{data.get('total_given', 0)}")
+    col2.metric("💰 Total Collected", f"₹{data.get('total_collected', 0)}")
+    col3.metric("📈 Profit", f"₹{data.get('profit', 0)}")
