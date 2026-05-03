@@ -359,3 +359,8 @@ def profit_summary():
         "total_collected": total_collected,
         "profit": profit
     }
+
+
+@router.get("/health")
+def health():
+    return {"status": "ok"}

@@ -52,14 +52,21 @@ warmup()
 
 # ================= HELPERS =================
 
-@st.cache_data(ttl=30)
 def fetch_with_retry(url):
-    try:
-        res = requests.get(url, timeout=5)
-        if res.status_code == 200:
-            return res.json()
-    except:
-        pass
+    for _ in range(2):  # retry once
+        try:
+            res = requests.get(url, timeout=10)
+
+            print("STATUS:", res.status_code)
+            print("RESPONSE:", res.text)
+
+            if res.status_code == 200:
+                return res.json()
+
+        except Exception as e:
+            print("ERROR:", e)
+            time.sleep(2)
+
     return None
 
 
@@ -492,7 +499,7 @@ if page == "Business Summary":
     st.markdown("## 📊 Business Summary")
 
     data = fetch_with_retry(f"{API_BASE}/transactions/profit-summary")
-
+    st.write("DEBUG:", data)
     if not data:
         st.error("Failed to load data")
         st.stop()
