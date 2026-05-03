@@ -362,7 +362,7 @@ if page == "Add Customer":
 
         customer_id = st.text_input("Customer ID")
         name = st.text_input("Name")
-        customer_type = st.selectbox("Customer Type",["furniture", "DL", "DPL"])
+        customer_type = st.selectbox("Customer Type",["Furniture", "D/L", "DPL"])
         phone = st.text_input("Phone")
         address = st.text_input("Address")
         interest = st.number_input("Interest", min_value=0, step=1)
