@@ -369,6 +369,3 @@ def profit_summary():
         return {"error": str(e)}
 
 
-@router.get("/health")
-def health():
-    return {"status": "ok"}

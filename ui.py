@@ -496,7 +496,6 @@ if page == "Business Summary":
     st.markdown("## 📊 Business Summary")
 
     data = fetch_with_retry(f"{API_BASE}/transactions/profit-summary")
-    st.write("DEBUG:", data)
     if not data:
         st.error("Failed to load data")
         st.stop()
