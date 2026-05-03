@@ -396,7 +396,7 @@ if page == "Add Customer":
                             "net_given": int(net_given),
                             "loan_date": str(loan_date),
                             "due_date": str(due_date),
-                            "type": customer_type
+                            "type": customer_type,
                         },
                         timeout=5
                     )
