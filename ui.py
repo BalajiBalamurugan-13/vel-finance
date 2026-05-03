@@ -35,7 +35,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-API_BASE = "https://vel-finance.onrender.com"
+API_BASE = "https://vel-finance-api.onrender.com"
 
 
 
