@@ -9,6 +9,7 @@ class CustomerCreate(BaseModel):
     net_given: int
     loan_date: str
     due_date: str
+    type: str
 
 class TransactionCreate(BaseModel):
     customer_id: int
