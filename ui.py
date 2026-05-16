@@ -88,7 +88,6 @@ page = st.sidebar.selectbox("Menu", [
     "Add Payment",
     "Add Expense",
     "History",
-    "Outstanding Summary",
     "Business Summary"
 ])
 
@@ -106,12 +105,6 @@ else:
 # ================= DASHBOARD =================
 if page == "Dashboard":
     st.markdown("## 📊 Today Summary")
-    st.markdown("## 💰 Cash Status")
-
-    cash = fetch_with_retry(f"{API_BASE}/transactions/cash-balance")
-
-    if cash:
-        st.metric("💰 Available Cash", f"₹{cash.get('cash_balance', 0)}")
     with st.spinner("Loading data..."):
         data = fetch_with_retry(f"{API_BASE}/transactions/dashboard")
 
@@ -142,19 +135,6 @@ if page == "Dashboard":
             st.warning(f"{c['customer_id']} - {c['name']}")
     else:
         st.success("All paid today ✅")
-
-
-    st.markdown("### 🚨 Payment Gaps")
-
-    if gaps:
-        for c in gaps:
-            if c.get("last_paid") == "Never":
-                st.error(f"{c['customer_id']} - {c['name']} ❗ Never Paid")
-            else:
-                st.warning(f"{c['customer_id']} - {c['name']} | {c['gap_days']} days gap")
-    else:
-        st.success("No gaps 🎉")
-
 
 # ================= ADD PAYMENT =================
 if page == "Add Payment":
@@ -474,37 +454,15 @@ if page == "History":
         for e in data["expenses"]:
             st.write(f"₹{e.get('amount', 0)} → {e.get('note', '-')}")
 
-# ================= OUTSTANDING SUMMARY =================
-if page == "Outstanding Summary":
-
-    st.markdown("## 💰 Outstanding by Category")
-
-    data = fetch_with_retry(f"{API_BASE}/transactions/outstanding-by-type")
-
-    if not data:
-        st.error("Failed to load data")
-        st.stop()
-
-    if "error" in data:
-        st.error(data["error"])
-        st.stop()
-
-    col1, col2, col3, col4 = st.columns(4)
-
-    col1.metric("🪑 Furniture", f"₹{data.get('Furniture', 0)}")
-    col2.metric("📦 DL", f"₹{data.get('DL', 0)}")
-    col3.metric("🏢 DPL", f"₹{data.get('DPL', 0)}")
-    col4.metric("💰 Total", f"₹{data.get('Total', 0)}")
-
-
     # ================= BUSINESS SUMMARY =================
 if page == "Business Summary":
 
     st.markdown("## 💰 Business Center")
-    tab1, tab2, tab3 = st.tabs([
+    tab1, tab2, tab3, tab4 = st.tabs([
         "💰 Cash",
         "📈 Profit",
-        "⚠️ Risk"
+        "⚠️ Risk",
+        "📊 Performance"
     ])
     with tab1:
 
@@ -617,33 +575,56 @@ if page == "Business Summary":
 
             st.divider()
 
-    st.markdown("### 🚨 Payment Gaps")
+        st.markdown("### 🚨 Payment Gaps")
 
-    dashboard = fetch_with_retry(
-        f"{API_BASE}/transactions/dashboard"
-    )
+        dashboard = fetch_with_retry(
+            f"{API_BASE}/transactions/dashboard"
+        )
 
-    gaps = dashboard.get("gaps", []) if dashboard else []
+        gaps = dashboard.get("gaps", []) if dashboard else []
 
-    if gaps:
+        if gaps:
 
-        for c in gaps:
+            for c in gaps:
 
-            if c.get("last_paid") == "Never":
+                if c.get("last_paid") == "Never":
 
-                st.error(
-                    f"{c['customer_id']} - {c['name']} ❗ Never Paid"
+                    st.error(
+                        f"{c['customer_id']} - {c['name']} ❗ Never Paid"
+                    )
+
+                else:
+
+                    st.warning(
+                        f"{c['customer_id']} - {c['name']} | {c['gap_days']} days gap"
+                    )
+
+        else:
+            st.success("No payment gaps ✅")
+
+    with tab4:
+        st.markdown("## 📊 Business Performance")
+        weekly = fetch_with_retry(
+            f"{API_BASE}/transactions/weekly-summary"
+        )
+
+        if weekly:
+
+            st.markdown("### 📅 Weekly Summary")
+
+            for day in weekly:
+
+                st.write(
+                    f"📆 {day['date']} | "
+                    f"💰 Collection: ₹{day['collection']} | "
+                    f"💸 Expense: ₹{day['expense']} | "
+                    f"📊 Net: ₹{day['net']}"
                 )
 
-            else:
+        else:
+            st.error("Failed to load weekly summary")
 
-                st.warning(
-                    f"{c['customer_id']} - {c['name']} | {c['gap_days']} days gap"
-                )
-
-    else:
-        st.success("No payment gaps ✅")
-
+#===================End==============================
     @st.cache_data(ttl=60)
     def get_profit_summary():
         return fetch_with_retry(f"{API_BASE}/transactions/profit-summary")
