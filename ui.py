@@ -579,6 +579,70 @@ if page == "Business Summary":
                     f"<h3 style='color:{color}'>Profit: ₹{profit}</h3>",
                     unsafe_allow_html=True
                 )
+    with tab3:
+
+        st.markdown("## ⚠️ Risk Overview")
+        st.markdown("### 💰 Outstanding by Category")
+
+        outstanding = fetch_with_retry(
+            f"{API_BASE}/transactions/outstanding-by-type"
+        )
+
+        if outstanding:
+
+            col1, col2, col3, col4 = st.columns(4)
+
+            col1.metric(
+                "🪑 Furniture",
+                f"₹{outstanding.get('Furniture', 0)}"
+            )
+
+            col2.metric(
+                "📦 DL",
+                f"₹{outstanding.get('DL', 0)}"
+            )
+
+            col3.metric(
+                "🏢 DPL",
+                f"₹{outstanding.get('DPL', 0)}"
+            )
+
+            col4.metric(
+                "💰 Total",
+                f"₹{outstanding.get('Total', 0)}"
+            )
+
+        else:
+            st.error("Failed to load outstanding data")
+
+            st.divider()
+
+    st.markdown("### 🚨 Payment Gaps")
+
+    dashboard = fetch_with_retry(
+        f"{API_BASE}/transactions/dashboard"
+    )
+
+    gaps = dashboard.get("gaps", []) if dashboard else []
+
+    if gaps:
+
+        for c in gaps:
+
+            if c.get("last_paid") == "Never":
+
+                st.error(
+                    f"{c['customer_id']} - {c['name']} ❗ Never Paid"
+                )
+
+            else:
+
+                st.warning(
+                    f"{c['customer_id']} - {c['name']} | {c['gap_days']} days gap"
+                )
+
+    else:
+        st.success("No payment gaps ✅")
 
     @st.cache_data(ttl=60)
     def get_profit_summary():
