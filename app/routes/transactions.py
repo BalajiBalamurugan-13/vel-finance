@@ -87,7 +87,7 @@ def get_customer_balance(customer_id: int):
         "address": customer.get("address"),
         "interest": customer.get("interest"),
         "type": customer.get("type"),
-        "loan_amount": customer.get("net_given"),
+        "loan_amount": customer.get("loan_amount"),
         "net_given": customer.get("net_given"),
         "loan_date": customer.get("loan_date"),
         "due_date": customer.get("due_date"),
@@ -387,6 +387,28 @@ def get_cash_balance():
             "cash_balance": cash_balance,
             "total_credit": total_credit,
             "total_debit": total_debit
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
+    
+@router.get("/expected-profit")
+def expected_profit():
+    try:
+
+        res = supabase.table("customers") \
+            .select("interest") \
+            .execute()
+
+        customers = res.data or []
+
+        total_profit = sum(
+            c.get("interest", 0) or 0
+            for c in customers
+        )
+
+        return {
+            "expected_profit": total_profit
         }
 
     except Exception as e:

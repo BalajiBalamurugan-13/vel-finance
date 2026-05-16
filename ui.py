@@ -379,7 +379,7 @@ if page == "Add Customer":
         phone = st.text_input("Phone")
         address = st.text_input("Address")
         interest = st.number_input("Interest", min_value=0, step=1)
-        net_given = st.number_input("Loan Amount", min_value=0, value=None, placeholder="Enter amount")
+        loan_amount = st.number_input("Loan Amount", min_value=0, value=None, placeholder="Enter amount")
 
         loan_date = st.date_input("Loan Date")
         due_date = st.date_input("Due Date")
@@ -392,7 +392,7 @@ if page == "Add Customer":
                 st.error("Fill all fields")
                 st.stop()
 
-            if net_given is None or net_given <= 0:
+            if loan_amount is None or loan_amount <= 0:
                 st.error("Enter valid loan amount")
                 st.stop()
                 
@@ -406,7 +406,7 @@ if page == "Add Customer":
                             "phone": phone,
                             "address": address,
                             "interest": int(interest) if interest else 0,
-                            "net_given": int(net_given),
+                            "loan_amount": int(loan_amount),
                             "loan_date": str(loan_date),
                             "due_date": str(due_date),
                             "type": customer_type,
@@ -500,31 +500,59 @@ if page == "Outstanding Summary":
     # ================= BUSINESS SUMMARY =================
 if page == "Business Summary":
 
-    st.markdown("## 📊 Business Summary")
+    st.markdown("## 💰 Business Center")
+    tab1, tab2, tab3 = st.tabs([
+        "💰 Cash",
+        "📈 Profit",
+        "⚠️ Risk"
+    ])
+    with tab1:
 
-    @st.cache_data(ttl=60)
-    def get_profit_summary():
-        return fetch_with_retry(f"{API_BASE}/transactions/profit-summary")
+        st.markdown("### 💰 Cash Status")
 
-    data = get_profit_summary()
+        cash = fetch_with_retry(f"{API_BASE}/transactions/cash-balance")
 
-    if not data:
-        st.error("Failed to load data")
-        st.stop()
+        if cash:
 
-    if "error" in data:
-        st.error(data["error"])
-        st.stop()
+            col1, col2, col3 = st.columns(3)
 
-    col1, col2, col3 = st.columns(3)
+            col1.metric(
+                "💵 Available Cash",
+                f"₹{cash.get('cash_balance', 0)}"
+            )
 
-    col1.metric("💸 Total Given", f"₹{data.get('total_given', 0)}")
-    col2.metric("💰 Total Collected", f"₹{data.get('total_collected', 0)}")
-    col3.metric("📈 Profit", f"₹{data.get('profit', 0)}")
+            col2.metric(
+                "📈 Total Credit",
+                f"₹{cash.get('total_credit', 0)}"
+            )
 
-    st.divider()
+            col3.metric(
+                "📉 Total Debit",
+                f"₹{cash.get('total_debit', 0)}"
+            )
 
-    # ✅ CATEGORY PROFIT (FIXED POSITION)
+        else:
+            st.error("Failed to load cash data")
+
+    with tab2:
+
+        st.markdown("### 📈 Profit Overview")
+
+        profit = fetch_with_retry(
+            f"{API_BASE}/transactions/expected-profit"
+        )
+
+        if profit:
+
+            st.metric(
+                "💰 Expected Profit",
+                f"₹{profit.get('expected_profit', 0)}"
+            )
+
+        else:
+            st.error("Failed to load profit data")
+
+        # ✅ CATEGORY PROFIT (FIXED POSITION)
     st.markdown("### 📊 Profit by Category")
 
     data = fetch_with_retry(f"{API_BASE}/transactions/profit-by-category")
@@ -551,3 +579,26 @@ if page == "Business Summary":
                     f"<h3 style='color:{color}'>Profit: ₹{profit}</h3>",
                     unsafe_allow_html=True
                 )
+
+    @st.cache_data(ttl=60)
+    def get_profit_summary():
+        return fetch_with_retry(f"{API_BASE}/transactions/profit-summary")
+
+    data = get_profit_summary()
+
+    if not data:
+        st.error("Failed to load data")
+        st.stop()
+
+    if "error" in data:
+        st.error(data["error"])
+        st.stop()
+
+    col1, col2, col3 = st.columns(3)
+
+    col1.metric("💸 Total Given", f"₹{data.get('total_given', 0)}")
+    col2.metric("💰 Total Collected", f"₹{data.get('total_collected', 0)}")
+    col3.metric("📈 Profit", f"₹{data.get('profit', 0)}")
+
+    st.divider()
+

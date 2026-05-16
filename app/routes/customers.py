@@ -9,7 +9,7 @@ router = APIRouter(prefix="/customers", tags=["Customers"])
 def add_customer(data: CustomerCreate):
 
     customer = data.dict()
-    loan_amount = customer.get("net_given") or 0
+    loan_amount = customer.get("loan_amount") or 0
     interest = customer.get("interest") or 0
 
     if loan_amount <= 0:

@@ -6,7 +6,7 @@ class CustomerCreate(BaseModel):
     phone: str
     address: str
     interest: int
-    net_given: int
+    loan_amount: int
     loan_date: str
     due_date: str
     type: str
