@@ -553,32 +553,32 @@ if page == "Business Summary":
             st.error("Failed to load profit data")
 
         # ✅ CATEGORY PROFIT (FIXED POSITION)
-    st.markdown("### 📊 Profit by Category")
+        st.markdown("### 📊 Profit by Category")
 
-    data = fetch_with_retry(f"{API_BASE}/transactions/profit-by-category")
+        data = fetch_with_retry(f"{API_BASE}/transactions/profit-by-category")
 
-    if not data:
-        st.error("Failed to load category data")
-    else:
-        cols = st.columns(len(data))
+        if not data:
+            st.error("Failed to load category data")
+        else:
+            cols = st.columns(len(data))
 
-        for i, item in enumerate(data):
-            category = item.get("category", "Unknown")
-            given = item.get("total_given", 0)
-            collected = item.get("total_collected", 0)
-            profit = item.get("profit", 0)
+            for i, item in enumerate(data):
+                category = item.get("category", "Unknown")
+                given = item.get("total_given", 0)
+                collected = item.get("total_collected", 0)
+                profit = item.get("profit", 0)
 
-            # 🔥 Color logic
-            color = "red" if profit < 0 else "green"
+                # 🔥 Color logic
+                color = "red" if profit < 0 else "green"
 
-            with cols[i]:
-                st.markdown(f"### {category}")
-                st.metric("💸 Given", f"₹{given}")
-                st.metric("💰 Collected", f"₹{collected}")
-                st.markdown(
-                    f"<h3 style='color:{color}'>Profit: ₹{profit}</h3>",
-                    unsafe_allow_html=True
-                )
+                with cols[i]:
+                    st.markdown(f"### {category}")
+                    st.metric("💸 Given", f"₹{given}")
+                    st.metric("💰 Collected", f"₹{collected}")
+                    st.markdown(
+                        f"<h3 style='color:{color}'>Profit: ₹{profit}</h3>",
+                        unsafe_allow_html=True
+                    )
     with tab3:
 
         st.markdown("## ⚠️ Risk Overview")
