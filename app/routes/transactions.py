@@ -55,7 +55,7 @@ def get_customer_balance(customer_id: int):
     total_paid = sum(t.get("amount_paid", 0) or 0 for t in transactions)
 
     # 4. Balance
-    balance = (customer.get("net_given") or 0) - total_paid
+    balance = (customer.get("loan_amount") or 0) - total_paid
 
     # 5. Overdue calculation
     today = date.today()
@@ -88,7 +88,6 @@ def get_customer_balance(customer_id: int):
         "interest": customer.get("interest"),
         "type": customer.get("type"),
         "loan_amount": customer.get("loan_amount"),
-        "net_given": customer.get("net_given"),
         "loan_date": customer.get("loan_date"),
         "due_date": customer.get("due_date"),
         "total_paid": total_paid,
@@ -333,7 +332,7 @@ def outstanding_by_type():
             customer_type = c.get("type") or "DL"
 
             paid = paid_map.get(cid, 0)
-            balance = (c.get("net_given") or 0) - paid
+            balance = (c.get("loan_amount") or 0) - paid
 
             result[customer_type] += balance
             result["Total"] += balance
