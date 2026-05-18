@@ -89,7 +89,7 @@ page = st.sidebar.selectbox("Menu", [
     "Business Summary"
 ])
 
-st.title("💰 VEL Finance Dashboard")
+st.title("Welcome to VEL Finance ")
 
 if "msg" in st.session_state:
     st.success(st.session_state["msg"])
