@@ -299,6 +299,12 @@ if page == "View Customer":
         st.markdown("### 💸 Quick Payment")
 
         amount = st.number_input("Amount", step=10, min_value=0, value=None, placeholder="Enter amount")
+        payment_date = st.date_input(
+            "Payment Date",
+            value=date.today(),
+            max_value=date.today(),
+            key=f"payment_date_{cid}"
+        )
 
         if "payment_done" not in st.session_state:
             st.session_state.payment_done = False
@@ -318,7 +324,7 @@ if page == "View Customer":
                         json={
                             "customer_id": cid,
                             "amount_paid": int(amount),
-                            "payment_date": str(date.today())
+                            "payment_date": str(payment_date)
                         }
                     )
 
