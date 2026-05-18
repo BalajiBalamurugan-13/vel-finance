@@ -85,7 +85,6 @@ page = st.sidebar.selectbox("Menu", [
     "Dashboard",
     "View Customer",
     "Add Customer",
-    "Add Payment",
     "Add Expense",
     "History",
     "Business Summary"
@@ -135,60 +134,6 @@ if page == "Dashboard":
             st.warning(f"{c['customer_id']} - {c['name']}")
     else:
         st.success("All paid today ✅")
-
-# ================= ADD PAYMENT =================
-if page == "Add Payment":
-    
-    st.markdown("## 💸 Collection Entry")
-
-    with st.form("payment_form", clear_on_submit=True):
-
-        customers = st.session_state.get("customers", [])
-
-        options = {f"{c['customer_id']} - {c['name']}": c["customer_id"] for c in customers} if customers else {}
-
-        if options:
-            selected = st.selectbox("Select Customer", list(options.keys()))
-            customer_id = options[selected]
-        else:
-            st.warning("No customers available or server issue")
-            st.stop()
-        amount_paid = st.number_input("Amount", step=10, min_value=0, value=None, placeholder="Enter amount")
-        payment_date = st.date_input("Payment Date", value=date.today(), max_value=date.today())
-
-        submitted = st.form_submit_button("✅ ADD PAYMENT", use_container_width=True)
-
-        if submitted:
-            if amount_paid <= 0:
-                st.warning("Enter valid amount")
-                st.stop()
-
-            try:
-                with st.spinner("Processing..."):
-                    res = requests.post(
-                        f"{API_BASE}/transactions/add",
-                        json={
-                            "customer_id": int(customer_id),
-                            "amount_paid": int(amount_paid),
-                            "payment_date": str(payment_date)
-                        },
-                        timeout=5
-                    )
-
-                if res.status_code == 200:
-                    st.success("Payment added successfully")
-# update locally (instant UI update)
-                    if "customers" in st.session_state:
-                        st.session_state["customers"] = fetch_with_retry(f"{API_BASE}/customers/")
-                else:
-                    st.error("❌ Failed to add payment")
-
-            except Exception as e:
-                if "timeout" in str(e).lower():
-                    st.warning("⚠️ Server slow, but payment may be saved")
-                else:
-                    st.error("❌ No internet / server issue")
-
 
 # ================= ADD EXPENSE =================
 if page == "Add Expense":
@@ -262,12 +207,33 @@ if page == "View Customer":
     data = fetch_with_retry(f"{API_BASE}/transactions/customer/{cid}")
 
     if data:
-        st.write(f"👤 {data['name']} | Balance: ₹{data['balance']}")
-        st.write(f"📞 {data['phone']}")
-        st.write(f"📍 {data.get('address', '-')}")
+        st.markdown("## 👤 Customer Profile")
+
+        col1, col2, col3 = st.columns(3)
+
+        col1.metric(
+            "💰 Balance",
+            f"₹{data.get('balance', 0)}"
+        )
+
+        col2.metric(
+            "💵 Loan Amount",
+            f"₹{data.get('loan_amount', 0)}"
+        )
+
+        col3.metric(
+            "💸 Net Given",
+            f"₹{data.get('net_given', 0)}"
+        )
+
+        st.divider()
+
+        st.write(f"👤 Name: {data['name']}")
+        st.write(f"📞 Phone: {data['phone']}")
+        st.write(f"📍 Address: {data.get('address', '-')}")
         st.write(f"🏷️ Category: {data.get('type', '-')}")
-        st.write(f"💵 Loan Amount: ₹{data.get('loan_amount', 0)}")
-        st.write(f"💰 Net Given: ₹{data.get('net_given', 0)}")
+        st.write(f"📅 Due Date: {data.get('due_date', '-')}")
+
         if st.button("🗑️ Delete Customer"):
             st.session_state["confirm_delete"] = True
 
