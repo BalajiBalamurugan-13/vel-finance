@@ -35,7 +35,7 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-API_BASE = "http://localhost:8000"
+API_BASE = "https://velfinance.onrender.com/"
 # ================= HELPERS =================
 
 def fetch_with_retry(url):
