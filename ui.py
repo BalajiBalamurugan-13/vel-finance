@@ -73,11 +73,6 @@ def get_cash_balance():
 def get_expected_profit():
     return fetch_with_retry(f"{API_BASE}/transactions/expected-profit")
 
-
-@st.cache_data(ttl=60)
-def get_weekly_summary():
-    return fetch_with_retry(f"{API_BASE}/transactions/weekly-summary")
-
 @st.cache_data(ttl=30)
 def get_history_data(selected_date):
     return fetch_with_retry(f"{API_BASE}/transactions/summary-by-date/{selected_date}")
@@ -210,7 +205,7 @@ if page == "View Customer":
         st.error("Failed to load customers")
         st.stop()
 
-    search = st.text_input("Search Customer") or ""
+    search = (st.text_input("Search Customer") or "").strip()
 
     filtered = [
         c for c in customers
@@ -261,9 +256,9 @@ if page == "View Customer":
         st.write(f"📅 Due Date: {data.get('due_date', '-')}")
 
         if st.button("🗑️ Delete Customer"):
-            st.session_state["confirm_delete"] = True
+            st.session_state[f"confirm_delete_{cid}"] = True
 
-        if st.session_state.get("confirm_delete"):
+        if st.session_state.get(f"confirm_delete_{cid}"):
             st.warning("Are you sure you want to delete this customer?")
 
             col1, col2 = st.columns(2)
@@ -277,7 +272,7 @@ if page == "View Customer":
                         if res.status_code == 200 and "message" in data:
                             st.cache_data.clear()
                             st.success("Customer deleted successfully")
-                            st.session_state["confirm_delete"] = False
+                            st.session_state[f"confirm_delete_{cid}"] = False
                             st.session_state["customers"] = fetch_with_retry(f"{API_BASE}/customers/")
                         else:
                             st.error(data.get("error", "Delete failed"))
@@ -287,7 +282,7 @@ if page == "View Customer":
 
             with col2:
                 if st.button("❌ Cancel"):
-                    st.session_state["confirm_delete"] = False
+                    st.session_state[f"confirm_delete_{cid}"] = False
 
         st.markdown("### 💸 Quick Payment")
 
@@ -299,16 +294,18 @@ if page == "View Customer":
             key=f"payment_date_{cid}"
         )
 
-        if "payment_done" not in st.session_state:
-            st.session_state.payment_done = False
+        payment_key = f"payment_done_{cid}"
 
-        if st.button("Pay Now", disabled=st.session_state.payment_done):
+        if payment_key not in st.session_state:
+            st.session_state[payment_key] = False
+
+        if st.button("Pay Now", disabled=st.session_state[payment_key]):
 
             if not amount or amount <= 0:
                 st.error("Enter valid amount")
                 st.stop()
 
-            st.session_state.payment_done = True
+            st.session_state[payment_key] = True
 
             try:
                 with st.spinner("Processing..."):
@@ -324,14 +321,14 @@ if page == "View Customer":
                 if res.status_code == 200:
                     st.cache_data.clear()
                     st.success("Payment added")
-                    st.session_state.payment_done = False
+                    st.session_state[payment_key] = False
                     st.session_state["customers"] = fetch_with_retry(f"{API_BASE}/customers/")
                 else:
-                    st.session_state.payment_done = False
+                    st.session_state[payment_key] = False
                     st.error("Failed")
 
             except Exception as e:
-                st.session_state.payment_done = False
+                st.session_state[payment_key] = False
                 st.error(f"Error: {e}")
 
         st.markdown("### 💵 Transactions")
@@ -457,11 +454,10 @@ if page == "History":
 if page == "Business Summary":
 
     st.markdown("## 💰 Business Center")
-    tab1, tab2, tab3, tab4 = st.tabs([
+    tab1, tab2, tab3 = st.tabs([
         "💰 Cash",
         "📈 Profit",
         "⚠️ Risk",
-        "📊 Performance"
     ])
     with tab1:
 
@@ -470,7 +466,7 @@ if page == "Business Summary":
 
         if cash:
 
-            col1, col2, col3 = st.columns(3)
+            col1, col2 = st.columns(2)
 
             col1.metric(
                 "💵 Available Cash",
@@ -478,13 +474,22 @@ if page == "Business Summary":
             )
 
             col2.metric(
-                "📈 Total Credit",
-                f"₹{cash.get('total_credit', 0)}"
+                "💰 Total Collection",
+                f"₹{cash.get('total_collection', 0)}"
             )
 
+            st.divider()
+
+            col3, col4 = st.columns(2)
+
             col3.metric(
-                "📉 Total Debit",
-                f"₹{cash.get('total_debit', 0)}"
+                "📤 Total Loan Given",
+                f"₹{cash.get('total_loan_given', 0)}"
+            )
+
+            col4.metric(
+                "💸 Total Expense",
+                f"₹{cash.get('total_expense', 0)}"
             )
 
         else:
@@ -493,17 +498,32 @@ if page == "Business Summary":
 
         st.markdown("### 📈 Profit Overview")
 
-        profit = get_expected_profit() # Reusing cash balance API for profit summary
+        data = get_profit_summary()
 
-        if profit:
+        if not data:
+            st.error("Failed to load data")
+            st.stop()
 
-            st.metric(
-                "💰 Expected Profit",
-                f"₹{profit.get('expected_profit', 0)}"
-            )
+        if "error" in data:
+            st.error(data["error"])
+            st.stop()
 
-        else:
-            st.error("Failed to load profit data")
+        col1, col2, col3 = st.columns(3)
+
+        col1.metric(
+            "📤 Total Loan Given",
+            f"₹{data.get('total_given', 0)}"
+        )
+
+        col2.metric(
+            "💰 Total Collected",
+            f"₹{data.get('total_collected', 0)}"
+        )
+
+        col3.metric(
+            "📈 Profit",
+            f"₹{data.get('profit', 0)}"
+        )
 
         # ✅ CATEGORY PROFIT (FIXED POSITION)
         st.markdown("### 📊 Profit by Category")
@@ -513,7 +533,7 @@ if page == "Business Summary":
         if not data:
             st.error("Failed to load category data")
         else:
-            cols = st.columns(len(data))
+            cols = st.columns(max(len(data), 1))
 
             for i, item in enumerate(data):
                 category = item.get("category", "Unknown")
@@ -592,43 +612,3 @@ if page == "Business Summary":
 
         else:
             st.success("No payment gaps ✅")
-    with tab4:
-        st.markdown("## 📊 Business Performance")
-        weekly = get_weekly_summary()
-        if weekly:
-
-            st.markdown("### 📅 Weekly Summary")
-
-            for day in weekly:
-
-                st.write(
-                    f"📆 {day['date']} | "
-                    f"💰 Collection: ₹{day['collection']} | "
-                    f"💸 Expense: ₹{day['expense']} | "
-                    f"📊 Net: ₹{day['net']}"
-                )
-
-        else:
-            st.error("Failed to load weekly summary")
-
-#===================End==============================
-
-
-    data = get_profit_summary()
-
-    if not data:
-        st.error("Failed to load data")
-        st.stop()
-
-    if "error" in data:
-        st.error(data["error"])
-        st.stop()
-
-    col1, col2, col3 = st.columns(3)
-
-    col1.metric("💸 Total Given", f"₹{data.get('total_given', 0)}")
-    col2.metric("💰 Total Collected", f"₹{data.get('total_collected', 0)}")
-    col3.metric("📈 Profit", f"₹{data.get('profit', 0)}")
-
-    st.divider()
-
