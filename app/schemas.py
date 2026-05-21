@@ -13,7 +13,7 @@ class CustomerCreate(BaseModel):
 
 class TransactionCreate(BaseModel):
     customer_id: int
-    amount_paid: int   # ✅ FIXEDf
+    amount_paid: int   
     payment_date: str
 
 class ExpenseCreate(BaseModel):

@@ -1,6 +1,7 @@
 from fastapi import APIRouter
 from app.db import supabase
 from app.schemas import ExpenseCreate
+from datetime import date
 
 router = APIRouter(prefix="/expenses", tags=["Expenses"])
 
@@ -28,8 +29,6 @@ def add_expense(data: ExpenseCreate):
 @router.get("/today")
 def get_today_expense():
 
-    from datetime import date
-
     today = date.today().isoformat()
 
     res = supabase.table("expenses") \
@@ -44,5 +43,5 @@ def get_today_expense():
     return {
         "date": today,
         "total_expense": total_expense,
-        "expensess": expenses
+        "expenses": expenses
     }

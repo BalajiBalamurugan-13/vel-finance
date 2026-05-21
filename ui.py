@@ -36,23 +36,11 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 API_BASE = "http://localhost:8000"
-
-
-# 🔥 WARMUP
-def warmup():
-    try:
-        requests.get(f"{API_BASE}/health", timeout=15)
-    except:
-        pass
-
-warmup()
-
-
-
 # ================= HELPERS =================
 
 def fetch_with_retry(url):
-    for _ in range(3):  # try 3 times
+
+    for _ in range(3):
         try:
             res = requests.get(url, timeout=30)
 
@@ -66,10 +54,49 @@ def fetch_with_retry(url):
     return None
 
 
-    
+@st.cache_data(ttl=60)
+def get_customers_cached():
+    return fetch_with_retry(f"{API_BASE}/customers/")
+
+
+@st.cache_data(ttl=30)
+def get_dashboard_data():
+    return fetch_with_retry(f"{API_BASE}/transactions/dashboard")
+
+
+@st.cache_data(ttl=60)
+def get_cash_balance():
+    return fetch_with_retry(f"{API_BASE}/transactions/cash-balance")
+
+
+@st.cache_data(ttl=60)
+def get_expected_profit():
+    return fetch_with_retry(f"{API_BASE}/transactions/expected-profit")
+
+
+@st.cache_data(ttl=60)
+def get_weekly_summary():
+    return fetch_with_retry(f"{API_BASE}/transactions/weekly-summary")
+
+@st.cache_data(ttl=30)
+def get_history_data(selected_date):
+    return fetch_with_retry(f"{API_BASE}/transactions/summary-by-date/{selected_date}")
+
+@st.cache_data(ttl=60)
+def get_profit_by_category():
+    return fetch_with_retry(f"{API_BASE}/transactions/profit-by-category")
+
+@st.cache_data(ttl=60)
+def get_outstanding_data():
+    return fetch_with_retry(f"{API_BASE}/transactions/outstanding-by-type")
+
+@st.cache_data(ttl=60)
+def get_profit_summary():
+    return fetch_with_retry(f"{API_BASE}/transactions/profit-summary")
+
 
 if "customers" not in st.session_state:
-    st.session_state["customers"] = fetch_with_retry(f"{API_BASE}/customers/")
+    st.session_state["customers"] = get_customers_cached()
 
 
 def is_online():
@@ -104,8 +131,7 @@ else:
 if page == "Dashboard":
     st.markdown("## 📊 Today Summary")
     with st.spinner("Loading data..."):
-        data = fetch_with_retry(f"{API_BASE}/transactions/dashboard")
-
+        data = get_dashboard_data()
     if not data:
         st.error("⚠️ Server busy, try again")
         st.stop()
@@ -161,6 +187,7 @@ if page == "Add Expense":
                 )
 
             if res.status_code == 200:
+                st.cache_data.clear()
                 st.success(f"Expense added ₹{amount}")
             else:
                 st.error("❌ Failed to add expense")
@@ -248,6 +275,7 @@ if page == "View Customer":
                         data = res.json()
 
                         if res.status_code == 200 and "message" in data:
+                            st.cache_data.clear()
                             st.success("Customer deleted successfully")
                             st.session_state["confirm_delete"] = False
                             st.session_state["customers"] = fetch_with_retry(f"{API_BASE}/customers/")
@@ -294,6 +322,7 @@ if page == "View Customer":
                     )
 
                 if res.status_code == 200:
+                    st.cache_data.clear()
                     st.success("Payment added")
                     st.session_state.payment_done = False
                     st.session_state["customers"] = fetch_with_retry(f"{API_BASE}/customers/")
@@ -367,6 +396,7 @@ if page == "Add Customer":
 
                 if res.status_code == 200:
                     st.session_state["customers"] = fetch_with_retry(f"{API_BASE}/customers/")
+                    st.cache_data.clear()
                     st.success(f"Customer {name} added")
                 else:
                     st.error(res.text)
@@ -388,9 +418,7 @@ if page == "History":
     # Convert to string (IMPORTANT)
     selected_date_str = str(selected_date)
 
-    data = fetch_with_retry(
-        f"{API_BASE}/transactions/summary-by-date/{selected_date_str}"
-    )
+    data = get_history_data(selected_date_str)
 
     if not data:
         st.error("Failed to load summary")
@@ -438,8 +466,7 @@ if page == "Business Summary":
     with tab1:
 
         st.markdown("### 💰 Cash Status")
-
-        cash = fetch_with_retry(f"{API_BASE}/transactions/cash-balance")
+        cash = get_cash_balance()
 
         if cash:
 
@@ -462,14 +489,11 @@ if page == "Business Summary":
 
         else:
             st.error("Failed to load cash data")
-
     with tab2:
 
         st.markdown("### 📈 Profit Overview")
 
-        profit = fetch_with_retry(
-            f"{API_BASE}/transactions/expected-profit"
-        )
+        profit = get_expected_profit() # Reusing cash balance API for profit summary
 
         if profit:
 
@@ -484,7 +508,7 @@ if page == "Business Summary":
         # ✅ CATEGORY PROFIT (FIXED POSITION)
         st.markdown("### 📊 Profit by Category")
 
-        data = fetch_with_retry(f"{API_BASE}/transactions/profit-by-category")
+        data = get_profit_by_category()
 
         if not data:
             st.error("Failed to load category data")
@@ -513,9 +537,7 @@ if page == "Business Summary":
         st.markdown("## ⚠️ Risk Overview")
         st.markdown("### 💰 Outstanding by Category")
 
-        outstanding = fetch_with_retry(
-            f"{API_BASE}/transactions/outstanding-by-type"
-        )
+        outstanding = get_outstanding_data()
 
         if outstanding:
 
@@ -548,9 +570,7 @@ if page == "Business Summary":
 
         st.markdown("### 🚨 Payment Gaps")
 
-        dashboard = fetch_with_retry(
-            f"{API_BASE}/transactions/dashboard"
-        )
+        dashboard = get_dashboard_data()
 
         gaps = dashboard.get("gaps", []) if dashboard else []
 
@@ -572,13 +592,9 @@ if page == "Business Summary":
 
         else:
             st.success("No payment gaps ✅")
-
     with tab4:
         st.markdown("## 📊 Business Performance")
-        weekly = fetch_with_retry(
-            f"{API_BASE}/transactions/weekly-summary"
-        )
-
+        weekly = get_weekly_summary()
         if weekly:
 
             st.markdown("### 📅 Weekly Summary")
@@ -596,9 +612,7 @@ if page == "Business Summary":
             st.error("Failed to load weekly summary")
 
 #===================End==============================
-    @st.cache_data(ttl=60)
-    def get_profit_summary():
-        return fetch_with_retry(f"{API_BASE}/transactions/profit-summary")
+
 
     data = get_profit_summary()
 

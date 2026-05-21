@@ -1,12 +1,11 @@
 from fastapi import FastAPI
-from app.routes import customers, transactions, expenses   # ✅ add this
-from app.db import supabase
+from app.routes import customers, transactions, expenses
 
 app = FastAPI()
 
 app.include_router(customers.router)
 app.include_router(transactions.router)
-app.include_router(expenses.router)          # ✅ add this
+app.include_router(expenses.router)
 
 @app.get("/")
 def root():

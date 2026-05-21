@@ -2,6 +2,8 @@ from fastapi import APIRouter
 from app.db import supabase
 from app.schemas import TransactionCreate
 from datetime import date
+from datetime import datetime, timedelta
+
 
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
 
@@ -29,9 +31,6 @@ def add_transaction(data: TransactionCreate):
 
 @router.get("/customer/{customer_id}")
 def get_customer_balance(customer_id: int):
-
-    from datetime import date
-
     # 1. Get customer
     customer_res = supabase.table("customers") \
         .select("*") \
@@ -45,7 +44,7 @@ def get_customer_balance(customer_id: int):
 
     # 2. Get transactions
     txn_res = supabase.table("transactions") \
-        .select("*") \
+        .select("amount_paid,payment_date") \
         .eq("customer_id", customer_id) \
         .execute()
 
@@ -100,14 +99,12 @@ def get_customer_balance(customer_id: int):
 
 @router.get("/daily-summary")
 def get_daily_summary():
-    from datetime import date
-
     today = date.today().isoformat()
 
     try:
         # 1. Get today's transactions
         t_res = supabase.table("transactions") \
-            .select("*") \
+            .select("amount_paid")  \
             .eq("payment_date", today) \
             .execute()
 
@@ -119,7 +116,7 @@ def get_daily_summary():
 
         # 2. Get today's expenses
         e_res = supabase.table("expenses") \
-            .select("*") \
+            .select("amount") \
             .eq("date", today) \
             .execute()
 
@@ -182,7 +179,6 @@ def summary_by_date(selected_date: str):
 @router.get("/weekly-summary")
 def weekly_summary():
     try:
-        from datetime import datetime, timedelta
 
         result = []
 
@@ -219,11 +215,11 @@ def weekly_summary():
     
 
 def get_not_paid_logic():
-    from datetime import date
-
     today = date.today().isoformat()
 
-    customers = supabase.table("customers").select("*").execute().data or []
+    customers = supabase.table("customers") \
+    .select("customer_id,name") \
+    .execute().data or []
 
     txns = supabase.table("transactions") \
         .select("customer_id") \
@@ -244,13 +240,15 @@ def get_not_paid_logic():
     return not_paid
 
 def get_gaps_logic():
-    from datetime import date
-
     today = date.today()
 
-    customers = supabase.table("customers").select("*").execute().data or []
+    customers = supabase.table("customers") \
+    .select("customer_id,name") \
+    .execute().data or []
 
-    all_txns = supabase.table("transactions").select("*").execute().data or []
+    all_txns = supabase.table("transactions") \
+    .select("customer_id,payment_date") \
+    .execute().data or []
 
     txn_map = {}
     for t in all_txns:
@@ -306,21 +304,31 @@ def get_dashboard():
 def outstanding_by_type():
 
     try:
-        # 1. Get all customers
-        cust_res = supabase.table("customers").select("*").execute()
+
+        # Customers
+        cust_res = supabase.table("customers") \
+            .select("customer_id,loan_amount,type") \
+            .execute()
+
         customers = cust_res.data or []
 
-        # 2. Get all transactions
-        txn_res = supabase.table("transactions").select("*").execute()
+        # Transactions
+        txn_res = supabase.table("transactions") \
+            .select("customer_id,amount_paid") \
+            .execute()
+
         transactions = txn_res.data or []
 
-        # 3. Build paid map
         paid_map = {}
+
         for t in transactions:
             cid = t.get("customer_id")
-            paid_map[cid] = paid_map.get(cid, 0) + (t.get("amount_paid", 0) or 0)
 
-        # 4. Group by type
+            paid_map[cid] = (
+                paid_map.get(cid, 0)
+                + (t.get("amount_paid", 0) or 0)
+            )
+
         result = {
             "Furniture": 0,
             "DL": 0,
@@ -329,11 +337,17 @@ def outstanding_by_type():
         }
 
         for c in customers:
+
             cid = c.get("customer_id")
+
             customer_type = c.get("type") or "DL"
 
             paid = paid_map.get(cid, 0)
-            balance = (c.get("loan_amount") or 0) - paid
+
+            balance = (
+                (c.get("loan_amount") or 0)
+                - paid
+            )
 
             result[customer_type] += balance
             result["Total"] += balance
@@ -375,7 +389,7 @@ def profit_by_category():
 @router.get("/cash-balance")
 def get_cash_balance():
     try:
-        res = supabase.table("cashbook").select("*").execute()
+        res = supabase.table("cashbook").select("amount,type").execute()
         data = res.data or []
 
         total_credit = sum(int(x.get("amount", 0)) for x in data if x.get("type") == "credit")
