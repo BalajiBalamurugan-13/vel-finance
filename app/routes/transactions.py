@@ -403,7 +403,7 @@ def expected_profit():
     try:
 
         res = supabase.table("customers") \
-            .select("interest") \
+            .select("interest,loan_given") \
             .execute()
 
         customers = res.data or []
@@ -411,6 +411,7 @@ def expected_profit():
         total_profit = sum(
             c.get("interest", 0) or 0
             for c in customers
+            if c.get("loan_given", True)
         )
 
         return {

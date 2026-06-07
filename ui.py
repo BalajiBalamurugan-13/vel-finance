@@ -354,7 +354,6 @@ if page == "Add Customer":
         name = st.text_input("Name")
         customer_type = st.selectbox("Customer Type",["Furniture", "DL", "DPL"])
         loan_given = True
-
         if customer_type == "DL":
             loan_given = st.radio(
                 "Loan Status",
