@@ -10,6 +10,7 @@ class CustomerCreate(BaseModel):
     loan_date: str
     due_date: str
     type: str
+    loan_given: bool = True
 
 class TransactionCreate(BaseModel):
     customer_id: int

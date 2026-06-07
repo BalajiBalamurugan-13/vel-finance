@@ -353,6 +353,14 @@ if page == "Add Customer":
         customer_id = st.text_input("Customer ID")
         name = st.text_input("Name")
         customer_type = st.selectbox("Customer Type",["Furniture", "DL", "DPL"])
+        loan_given = True
+
+        if customer_type == "DL":
+            loan_given = st.radio(
+                "Loan Status",
+                ["Given", "Not Given"],
+                horizontal=True
+            ) == "Given"
         phone = st.text_input("Phone")
         address = st.text_input("Address")
         interest = st.number_input("Interest", min_value=0, step=1)
@@ -387,6 +395,7 @@ if page == "Add Customer":
                             "loan_date": str(loan_date),
                             "due_date": str(due_date),
                             "type": customer_type,
+                            "loan_given": loan_given
                         },
                         timeout=5
                     )

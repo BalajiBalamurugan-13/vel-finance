@@ -179,7 +179,7 @@ def get_not_paid_logic():
     today = date.today().isoformat()
 
     customers = supabase.table("customers") \
-    .select("customer_id,name") \
+    .select("customer_id,name,loan_given") \
     .execute().data or []
 
     txns = supabase.table("transactions") \
@@ -192,6 +192,8 @@ def get_not_paid_logic():
     not_paid = []
 
     for c in customers:
+        if not c.get("loan_given", True):
+            continue
         if c["customer_id"] not in paid_today:
             not_paid.append({
                 "customer_id": c["customer_id"],
@@ -204,7 +206,7 @@ def get_gaps_logic():
     today = date.today()
 
     customers = supabase.table("customers") \
-    .select("customer_id,name") \
+    .select("customer_id,name,loan_given") \
     .execute().data or []
 
     all_txns = supabase.table("transactions") \
@@ -219,6 +221,8 @@ def get_gaps_logic():
     gaps = []
 
     for c in customers:
+        if not c.get("loan_given", True):
+            continue
         transactions = txn_map.get(c["customer_id"], [])
 
         if not transactions:
@@ -268,7 +272,7 @@ def outstanding_by_type():
 
         # Customers
         cust_res = supabase.table("customers") \
-            .select("customer_id,loan_amount,type") \
+            .select("customer_id,loan_amount,type,loan_given") \
             .execute()
 
         customers = cust_res.data or []
@@ -298,6 +302,8 @@ def outstanding_by_type():
         }
 
         for c in customers:
+            if not c.get("loan_given", True):
+                continue
 
             cid = c.get("customer_id")
 

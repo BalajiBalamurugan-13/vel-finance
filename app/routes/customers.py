@@ -28,12 +28,14 @@ def add_customer(data: CustomerCreate):
     try:
         inserted_customer = res.data[0] if res.data else {}
 
-        supabase.table("cashbook").insert({
-            "amount": actual_given,
-            "type": "debit",
-            "source": "loan",
-            "reference_id": str(inserted_customer.get("customer_id"))
-        }).execute()
+        if customer.get("loan_given", True):
+
+            supabase.table("cashbook").insert({
+                "amount": actual_given,
+                "type": "debit",
+                "source": "loan",
+                "reference_id": str(inserted_customer.get("customer_id"))
+            }).execute()
 
     except Exception as e:
         print("Cashbook loan error:", e)
