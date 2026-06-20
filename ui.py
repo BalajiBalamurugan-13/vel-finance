@@ -345,72 +345,92 @@ if page == "View Customer":
 
 # ================= ADD CUSTOMER =================
 if page == "Add Customer":
-    
-    st.markdown("## ➕ Add Customer")   
+
+    st.markdown("## ➕ Add Customer")
+
+    customer_type = st.selectbox(
+        "Customer Type",
+        ["Furniture", "DL", "DPL"]
+    )
+
+    loan_given = True
+
+    if customer_type == "DL":
+        loan_given = st.radio(
+            "Loan Status",
+            ["Given", "Not Given"],
+            horizontal=True
+        ) == "Given"
 
     with st.form("customer_form", clear_on_submit=True):
 
         customer_id = st.text_input("Customer ID")
         name = st.text_input("Name")
-        customer_type = st.selectbox("Customer Type",["Furniture", "DL", "DPL"])
-        loan_given = True
-        if customer_type == "DL":
-            loan_given = st.radio(
-                "Loan Status",
-                ["Given", "Not Given"],
-                horizontal=True
-            ) == "Given"
         phone = st.text_input("Phone")
         address = st.text_input("Address")
-        interest = st.number_input("Interest", min_value=0, step=1)
-        loan_amount = st.number_input("Loan Amount", min_value=0, value=None, placeholder="Enter amount")
+
+        interest = st.number_input(
+            "Interest",
+            min_value=0,
+            step=1
+        )
+
+        loan_amount = st.number_input(
+            "Loan Amount",
+            min_value=0,
+            value=None,
+            placeholder="Enter amount"
+        )
 
         loan_date = st.date_input("Loan Date")
         due_date = st.date_input("Due Date")
 
         submitted = st.form_submit_button("✅ ADD CUSTOMER")
 
-        if submitted:
+    if submitted:
 
-            if not all([customer_id, name, phone, address]):
-                st.error("Fill all fields")
-                st.stop()
+        if not all([customer_id, name, phone, address]):
+            st.error("Fill all fields")
+            st.stop()
 
-            if loan_amount is None or loan_amount <= 0:
-                st.error("Enter valid loan amount")
-                st.stop()
-                
-            try:
-                with st.spinner("Processing..."):
-                    res = requests.post(
-                        f"{API_BASE}/customers/add",
-                        json={
-                            "customer_id": int(customer_id),
-                            "name": name,
-                            "phone": phone,
-                            "address": address,
-                            "interest": int(interest) if interest else 0,
-                            "loan_amount": int(loan_amount),
-                            "loan_date": str(loan_date),
-                            "due_date": str(due_date),
-                            "type": customer_type,
-                            "loan_given": loan_given
-                        },
-                        timeout=5
-                    )
+        if loan_amount is None or loan_amount <= 0:
+            st.error("Enter valid loan amount")
+            st.stop()
 
-                if res.status_code == 200:
-                    st.session_state["customers"] = fetch_with_retry(f"{API_BASE}/customers/")
-                    st.cache_data.clear()
-                    st.success(f"Customer {name} added")
-                else:
-                    st.error(res.text)
+        try:
+            with st.spinner("Processing..."):
+                res = requests.post(
+                    f"{API_BASE}/customers/add",
+                    json={
+                        "customer_id": int(customer_id),
+                        "name": name,
+                        "phone": phone,
+                        "address": address,
+                        "interest": int(interest) if interest else 0,
+                        "loan_amount": int(loan_amount),
+                        "loan_date": str(loan_date),
+                        "due_date": str(due_date),
+                        "type": customer_type,
+                        "loan_given": loan_given
+                    },
+                    timeout=5
+                )
 
-            except Exception as e:
-                if "timeout" in str(e).lower():
-                    st.warning("⚠️ Server slow, but data may be saved")
-                else:
-                    st.error("❌ Connection error")
+            if res.status_code == 200:
+                st.session_state["customers"] = fetch_with_retry(
+                    f"{API_BASE}/customers/"
+                )
+                st.cache_data.clear()
+                st.success(f"Customer {name} added")
+
+            else:
+                st.error(res.text)
+
+        except Exception as e:
+            if "timeout" in str(e).lower():
+                st.warning("⚠️ Server slow, but data may be saved")
+            else:
+                st.error("❌ Connection error")
 
 
 # ================= HISTORY =================
