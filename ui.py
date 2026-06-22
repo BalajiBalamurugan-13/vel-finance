@@ -253,6 +253,33 @@ if page == "View Customer":
         st.write(f"📞 Phone: {data['phone']}")
         st.write(f"📍 Address: {data.get('address', '-')}")
         st.write(f"🏷️ Category: {data.get('type', '-')}")
+        if (
+            data.get("type") == "DL"
+            and not data.get("loan_given", True)
+        ):
+
+            st.warning("⚠️ Loan Not Yet Given")
+
+            if st.button("💰 Activate Loan"):
+
+                try:
+
+                    res = requests.put(
+                        f"{API_BASE}/customers/activate-loan/{cid}"
+                    )
+
+                    result = res.json()
+
+                    if res.status_code == 200:
+                        st.cache_data.clear()
+                        st.success(result["message"])
+                        st.rerun()
+
+                    else:
+                        st.error(result.get("error"))
+
+                except Exception as e:
+                    st.error(str(e))
         st.write(f"📅 Due Date: {data.get('due_date', '-')}")
 
         if st.button("🗑️ Delete Customer"):
@@ -283,7 +310,12 @@ if page == "View Customer":
             with col2:
                 if st.button("❌ Cancel"):
                     st.session_state[f"confirm_delete_{cid}"] = False
-
+        if (
+            data.get("type") == "DL"
+            and not data.get("loan_given", True)
+        ):
+            st.info("Activate loan before accepting payments.")
+            st.stop()
         st.markdown("### 💸 Quick Payment")
 
         amount = st.number_input("Amount", step=10, min_value=0, value=None, placeholder="Enter amount")

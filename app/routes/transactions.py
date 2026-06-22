@@ -86,6 +86,7 @@ def get_customer_balance(customer_id: int):
         "address": customer.get("address"),
         "interest": customer.get("interest"),
         "type": customer.get("type"),
+        "loan_given": customer.get("loan_given"),
         "loan_amount": customer.get("loan_amount"),
         "net_given": customer.get("net_given"),
         "loan_date": customer.get("loan_date"),

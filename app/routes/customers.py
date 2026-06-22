@@ -74,3 +74,47 @@ def delete_customer(customer_id: int):
 
     except Exception as e:
         return {"error": str(e)}
+    
+@router.put("/activate-loan/{customer_id}")
+def activate_loan(customer_id: int):
+
+    try:
+
+        # Get customer
+        res = supabase.table("customers") \
+            .select("*") \
+            .eq("customer_id", customer_id) \
+            .execute()
+
+        if not res.data:
+            return {"error": "Customer not found"}
+
+        customer = res.data[0]
+
+        # Already active
+        if customer.get("loan_given"):
+            return {"error": "Loan already activated"}
+
+        # Update customer
+        supabase.table("customers") \
+            .update({"loan_given": True}) \
+            .eq("customer_id", customer_id) \
+            .execute()
+
+        # Create cashbook debit
+        actual_given = (
+            (customer.get("loan_amount") or 0)
+            - (customer.get("interest") or 0)
+        )
+
+        supabase.table("cashbook").insert({
+            "amount": actual_given,
+            "type": "debit",
+            "source": "loan",
+            "reference_id": str(customer_id)
+        }).execute()
+
+        return {"message": "Loan activated successfully"}
+
+    except Exception as e:
+        return {"error": str(e)}
