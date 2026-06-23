@@ -96,10 +96,19 @@ def activate_loan(customer_id: int):
             return {"error": "Loan already activated"}
 
         # Update customer
-        supabase.table("customers") \
+        update_res = supabase.table("customers") \
             .update({"loan_given": True}) \
             .eq("customer_id", customer_id) \
             .execute()
+
+        print("UPDATE RESULT:", update_res.data)
+
+        verify = supabase.table("customers") \
+            .select("customer_id,loan_given") \
+            .eq("customer_id", customer_id) \
+            .execute()
+
+        print("VERIFY:", verify.data)
 
         # Create cashbook debit
         actual_given = (
