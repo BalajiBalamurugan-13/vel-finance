@@ -7,6 +7,7 @@ backend.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:5173",
+        "https://velfinace.netlify.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
