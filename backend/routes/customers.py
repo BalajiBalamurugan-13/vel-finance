@@ -1,0 +1,321 @@
+from fastapi import APIRouter
+from fastapi import HTTPException
+from backend.db import supabase
+from backend.schemas import CustomerCreate, CustomerUpdate
+from datetime import datetime, timedelta
+router = APIRouter(prefix="/customers", tags=["Customers"])
+
+
+@router.post("/add")
+def add_customer(data: CustomerCreate):
+
+    customer = data.dict()
+    if customer.get("type") == "Furniture":
+
+        selling_price = customer.get("selling_price") or 0
+        advance_amount = customer.get("advance_amount") or 0
+
+        loan_amount = selling_price - advance_amount
+
+    else:
+
+        loan_amount = customer.get("loan_amount") or 0
+    if not customer.get("customer_id") or customer["customer_id"] <= 0:
+        return {"error": "Valid Customer ID is required"}
+    if not customer.get("name") or not customer["name"].strip():
+        return {"error": "Customer name is required"}
+    phone = str(customer.get("phone") or "")
+
+    if len(phone) < 10:
+        return {"error": "Valid phone number is required"}
+    # DL Business Rule
+    if customer.get("type") == "DL":
+        interest = int((loan_amount * 12 / 100) + 50)
+
+    # Furniture Business Rule
+    else:
+        interest = int(customer.get("interest") or 0)
+        if interest <= 0:
+            return {"error": "Profit must be greater than 0"}
+
+    customer["interest"] = interest
+
+    customer["net_given"] = loan_amount - interest
+
+    if loan_amount <= 0:
+        return {
+            "error":
+            "Loan Amount must be greater than 0"
+            if customer["type"] == "DL"
+            else "Selling Price must be greater than 0"
+        }
+
+    actual_given = loan_amount - interest
+
+    if actual_given <= 0:
+        return {
+            "error": "Profit cannot be greater than or equal to Selling Price"
+        }
+
+    customer["net_given"] = actual_given
+    customer["loan_amount"] = loan_amount
+    if customer["type"] == "Furniture":
+        customer["selling_price"] = selling_price
+        customer["advance_amount"] = advance_amount
+
+    if not customer.get("loan_date"):
+        return {
+            "error":
+            "Loan Date is required"
+            if customer["type"] == "DL"
+            else "Delivery Date is required"
+        }
+    
+    if customer["type"] == "Furniture":
+
+        if not customer.get("due_date"):
+            return {"error": "Expected Completion is required"}
+    # Auto Due Date for DL
+    # Auto Due Date for DL
+    if customer.get("type") == "DL":
+
+        loan_date = customer.get("loan_date")
+
+        if loan_date:
+            due_date = (
+                datetime.strptime(loan_date, "%Y-%m-%d")
+                + timedelta(days=100)
+            )
+
+            customer["due_date"] = due_date.strftime("%Y-%m-%d")
+
+
+    # ✅ Check duplicate Customer ID (for BOTH DL & Furniture)
+    print("Checking Customer ID:", customer["customer_id"])
+
+    existing = (
+        supabase.table("customers")
+        .select("customer_id")
+        .eq("customer_id", customer["customer_id"])
+        .execute()
+    )
+
+    print("Existing Customer:", existing.data)
+    print("Incoming:", customer["customer_id"], type(customer["customer_id"]))
+    print("DB Result:", existing.data)
+
+    if existing.data:
+        raise HTTPException(
+            status_code=400,
+            detail="Customer ID already exists"
+        )
+
+
+    # ✅ Insert customer (for BOTH DL & Furniture)
+    res = (
+        supabase.table("customers")
+        .insert(customer)
+        .execute()
+    )
+
+    try:
+        inserted_customer = res.data[0] if res.data else {}
+
+        if customer["type"] == "Furniture":
+
+            # Advance received
+            if advance_amount > 0:
+                supabase.table("cashbook").insert({
+                    "amount": advance_amount,
+                    "type": "credit",
+                    "source": "advance",
+                    "reference_id": str(inserted_customer["customer_id"])
+                }).execute()
+
+            # Purchase payment
+            supabase.table("cashbook").insert({
+                "amount": actual_given,
+                "type": "debit",
+                "source": "purchase",
+                "reference_id": str(inserted_customer["customer_id"])
+            }).execute()
+
+        elif customer.get("loan_given", True):
+
+            supabase.table("cashbook").insert({
+                "amount": actual_given,
+                "type": "debit",
+                "source": "loan",
+                "reference_id": str(inserted_customer["customer_id"])
+            }).execute()
+
+    except Exception as e:
+        print("Cashbook loan error:", e)
+
+    return res.data
+
+@router.get("/")
+def get_customers():
+
+    res = (
+        supabase.table("customers")
+        .select("""
+            customer_id,
+            name,
+            address,
+            loan_given,
+            ready_to_close
+        """)
+        .execute()
+    )
+
+    return res.data
+
+@router.delete("/delete/{customer_id}")
+def delete_customer(customer_id: int):
+    try:
+        # delete transactions first
+        supabase.table("transactions") \
+            .delete() \
+            .eq("customer_id", customer_id) \
+            .execute()
+        # delete cashbook entries
+        supabase.table("cashbook") \
+            .delete() \
+            .eq("reference_id", str(customer_id)) \
+            .execute()
+        # delete customer
+        res = supabase.table("customers") \
+            .delete() \
+            .eq("customer_id", customer_id) \
+            .execute()
+
+        if not res.data:
+            return {"error": "Customer not found or already deleted"}
+
+        return {"message": "Customer deleted successfully"}
+
+    except Exception as e:
+        return {"error": str(e)}
+    
+@router.put("/activate-loan/{customer_id}")
+def activate_loan(customer_id: int):
+
+    try:
+
+        # Get customer
+        res = supabase.table("customers") \
+            .select("*") \
+            .eq("customer_id", customer_id) \
+            .execute()
+
+        if not res.data:
+            return {"error": "Customer not found"}
+
+        customer = res.data[0]
+
+        # Already active
+        if customer.get("loan_given"):
+            return {"error": "Loan already activated"}
+
+        # Update customer
+        update_res = supabase.table("customers") \
+            .update({"loan_given": True}) \
+            .eq("customer_id", customer_id) \
+            .execute()
+
+        print("UPDATE RESULT:", update_res.data)
+
+        verify = supabase.table("customers") \
+            .select("customer_id,loan_given") \
+            .eq("customer_id", customer_id) \
+            .execute()
+
+        print("VERIFY:", verify.data)
+
+        # Create cashbook debit
+        actual_given = (
+            (customer.get("loan_amount") or 0)
+            - (customer.get("interest") or 0)
+        )
+
+        supabase.table("cashbook").insert({
+            "amount": actual_given,
+            "type": "debit",
+            "source": "loan",
+            "reference_id": str(customer_id)
+        }).execute()
+
+        return {"message": "Loan activated successfully"}
+
+    except Exception as e:
+        return {"error": str(e)}
+    
+
+@router.put("/close-loan/{customer_id}")
+def close_loan(customer_id: int):
+
+    try:
+
+        customer = (
+            supabase.table("customers")
+            .select("ready_to_close")
+            .eq("customer_id", customer_id)
+            .execute()
+        )
+
+        if not customer.data:
+            return {"error": "Customer not found"}
+
+        if not customer.data[0]["ready_to_close"]:
+            return {
+                "error": "Loan is not yet completed"
+            }
+
+        # Delete all transactions
+        supabase.table("transactions") \
+            .delete() \
+            .eq("customer_id", customer_id) \
+            .execute()
+
+        # Delete customer
+        supabase.table("customers") \
+            .delete() \
+            .eq("customer_id", customer_id) \
+            .execute()
+
+        return {
+            "message": "Loan closed successfully"
+        }
+
+    except Exception as e:
+
+        return {"error": str(e)}
+    
+@router.put("/update/{customer_id}")
+def update_customer(customer_id: int, data: CustomerUpdate):
+
+    try:
+
+        update_data = data.dict(exclude_none=True)
+
+        if not update_data:
+            return {"error": "No fields to update"}
+
+        res = (
+            supabase.table("customers")
+            .update(update_data)
+            .eq("customer_id", customer_id)
+            .execute()
+        )
+
+        if not res.data:
+            return {"error": "Customer not found"}
+
+        return {
+            "message": "Customer updated successfully",
+            "customer": res.data[0]
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
