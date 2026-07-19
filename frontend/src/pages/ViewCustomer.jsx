@@ -4,8 +4,8 @@ import {
     getCustomers,
     getCustomerDetails
 } from "../services/customerService";
-import CustomerCard from "../components/customer/CustomerCard";
-import CustomerProfileDrawer from "../components/customer/CustomerProfileDrawer";
+import CustomerCard from "../components/Customer/CustomerCard";
+import CustomerProfileDrawer from "../components/Customer/CustomerProfileDrawer";
 
 function ViewCustomer() {
   const [customers, setCustomers] = useState([]);
