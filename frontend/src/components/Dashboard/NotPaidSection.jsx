@@ -24,12 +24,12 @@
         </div>
 
         <div
-          className="grid gap-2 px-4 mb-2 text-xs font-semibold text-slate-400 uppercase"
-          style={{ gridTemplateColumns: "50px 90px 1fr" }}
+          className="grid gap-2 px-4 mb-2 text-xs font-semibold text-slate-400 uppercase items-center"
+          style={{ gridTemplateColumns: "60px 110px 1fr" }}
         >
-            <div>Customer ID</div>
-            <div>Name</div>
-            <div>Place</div>
+            <div className="truncate"><span className="hidden sm:inline">Customer </span>ID</div>
+            <div className="truncate">Name</div>
+            <div className="truncate">Place</div>
         </div>
 
         {customers.length === 0 ? (
