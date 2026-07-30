@@ -7,10 +7,10 @@ function AddExpense() {
     w-full
     rounded-xl
     border
-    border-slate-600
-    bg-slate-800
+    border-slate-700/80
+    bg-[#0f172a]
     px-4
-    py-4
+    py-3.5
     text-white
     text-base
     placeholder:text-slate-500
@@ -30,6 +30,7 @@ function AddExpense() {
       note: "",
       date: today
   });
+  const [errors, setErrors] = useState({});
 
   function handleChange(e) {
     const { name, value } = e.target;
@@ -38,18 +39,30 @@ function AddExpense() {
       ...prev,
       [name]: value,
     }));
+    setErrors((prev) => ({
+      ...prev,
+      [name]: "",
+    }));
   }
 
   async function handleSubmit() {
+    const newErrors = {};
+
     if (Number(formData.amount) <= 0) {
-    toast.error("Please enter a valid amount");
-    return;
+      newErrors.amount = "Please enter a valid expense amount";
     }
 
     if (!formData.note.trim()) {
-        toast.error("Please enter an expense note");
-        return;
+      newErrors.note = "Expense description note is required";
     }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      toast.error("Please fill in all required fields correctly");
+      return;
+    }
+
+    setErrors({});
 
     try {
       await addExpense({
@@ -84,15 +97,15 @@ function AddExpense() {
           </p>
       </div>
       <div className="
-                bg-slate-900
+                bg-[#182238]
                 border
                 border-slate-800
                 rounded-2xl
                 p-6
-                shadow-lg
+                shadow-xl
                 space-y-6">
           <label className={labelStyles}>
-              Expense Date <span className="text-red-400">*</span>
+              Expense Date <span className="text-rose-400">*</span>
           </label>
 
           <input
@@ -111,7 +124,7 @@ function AddExpense() {
 
         <div>
             <label className={labelStyles}>
-                Amount <span className="text-red-400">*</span>
+                Amount <span className="text-rose-400">*</span>
             </label>
 
             <input
@@ -124,11 +137,16 @@ function AddExpense() {
                 onChange={handleChange}
                 className={inputStyles}
             />
+            {errors.amount && (
+              <p className="mt-2 text-xs font-medium text-rose-400">
+                {errors.amount}
+              </p>
+            )}
         </div>
 
         <div>
           <label className={labelStyles}>
-              Expense Note <span className="text-red-400">*</span>
+              Expense Note <span className="text-rose-400">*</span>
           </label>
 
           <textarea
@@ -139,14 +157,19 @@ function AddExpense() {
               onChange={handleChange}
               className={`${inputStyles} resize-none`}
           />
+          {errors.note && (
+            <p className="mt-2 text-xs font-medium text-rose-400">
+              {errors.note}
+            </p>
+          )}
       </div>
 
         <button
           onClick={handleSubmit}
           className="
               w-full
-              bg-red-600
-              hover:bg-red-500
+              bg-rose-600
+              hover:bg-rose-500
               active:scale-[0.98]
               transition-all
               duration-200

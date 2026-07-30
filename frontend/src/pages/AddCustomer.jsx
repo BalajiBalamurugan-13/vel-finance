@@ -10,10 +10,10 @@ function AddCustomer() {
   w-full
   rounded-xl
   border
-  border-slate-600
-  bg-slate-800
+  border-slate-700/80
+  bg-[#0f172a]
   px-4
-  py-4
+  py-3.5
   text-white
   text-base
   placeholder:text-slate-500
@@ -141,92 +141,64 @@ function AddCustomer() {
     }));
   }
   async function handleSubmit() {
+    const newErrors = {};
 
-  setErrors({});
+    // Customer ID
+    if (Number(formData.customer_id) <= 0) {
+      newErrors.customer_id = "Enter a valid Customer ID";
+    }
 
-  // Customer ID
-  if (Number(formData.customer_id) <= 0) {
+    // Name
+    if (!formData.name.trim()) {
+      newErrors.name = "Customer Name is required";
+    }
 
-    setErrors({
-        customer_id: "Enter a valid Customer ID",
-    });
+    // Phone
+    if (!formData.phone.trim()) {
+      newErrors.phone = "Phone Number is required";
+    } else if (formData.phone.length < 10) {
+      newErrors.phone = "Enter a valid 10-digit Phone Number";
+    }
 
-    return;
-}
+    // Loan Amount / Selling Price
+    const enteredAmount =
+      formData.type === "Furniture"
+          ? Number(formData.selling_price)
+          : Number(formData.loan_amount);
 
-  // Name
-  if (!formData.name.trim()) {
-    setErrors({
-        name: "Customer Name is required",
-    });
-    return;
-  }
+    if (enteredAmount <= 0) {
+      if (formData.type === "Furniture") {
+        newErrors.selling_price = "Selling Price must be greater than zero";
+      } else {
+        newErrors.loan_amount = "Loan Amount must be greater than zero";
+      }
+    }
 
-  // Phone
-  if (!formData.phone.trim()) {
+    // Loan Date / Delivery Date
+    if (!formData.loan_date) {
+      newErrors.loan_date = formData.type === "DL" ? "Loan Date is required" : "Delivery Date is required";
+    }
 
-    setErrors({
-        phone: "Phone Number is required",
-    });
+    // Furniture Validation
+    if (formData.type === "Furniture") {
+      if (Number(formData.interest) <= 0) {
+        newErrors.interest = "Profit must be greater than zero";
+      } else if (Number(formData.interest) >= Number(formData.selling_price)) {
+        newErrors.interest = "Profit cannot be greater than Selling Price";
+      }
 
-    return;
-}
+      if (!formData.due_date) {
+        newErrors.due_date = "Expected Completion date is required";
+      }
+    }
 
-  if (formData.phone.length < 10) {
-
-    setErrors({
-        phone: "Enter a valid 10-digit Phone Number",
-    });
-
-    return;
-}
-
-  // Loan Amount / Selling Price
-  const enteredAmount =
-    formData.type === "Furniture"
-        ? Number(formData.selling_price)
-        : Number(formData.loan_amount);
-
-  if (enteredAmount <= 0) {
-    toast.error(
-      formData.type === "DL"
-        ? "Loan Amount is required"
-        : "Selling Price is required"
-    );
-    return;
-  }
-
-  // Loan Date / Delivery Date
-  if (!formData.loan_date) {
-    toast.error(
-      formData.type === "DL"
-        ? "Loan Date is required"
-        : "Delivery Date is required"
-    );
-    return;
-  }
-
-  // Furniture Validation
-  if (formData.type === "Furniture") {
-
-    if (Number(formData.interest) <= 0) {
-      toast.error("Profit must be greater than zero");
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
+      toast.error("Please fix all form validation errors before saving");
       return;
     }
 
-    if (
-        Number(formData.interest) >=
-        Number(formData.selling_price)
-    ) {
-      toast.error("Profit cannot be greater than Selling Price");
-      return;
-    }
-
-    if (!formData.due_date) {
-      toast.error("Expected Completion is required");
-      return;
-    }
-  }
+    setErrors({});
 
   setLoading(true);
 
@@ -281,13 +253,13 @@ try {
       <h1 className="text-2xl font-bold mb-6">Add Customer</h1>
 
       <div className="
-bg-slate-900
+bg-[#182238]
 border
 border-slate-800
 rounded-2xl
 p-6
 space-y-6
-shadow-lg
+shadow-xl
 ">
         <select
           name="type"
@@ -396,7 +368,7 @@ shadow-lg
 
         <div>
             <label className={labelStyles}>
-                Selling Price <span className="text-red-400">*</span>
+                Selling Price <span className="text-rose-400">*</span>
             </label>
 
             <input
@@ -409,13 +381,18 @@ shadow-lg
                 onChange={handleChange}
                 className={inputStyles}
             />
+            {errors.selling_price && (
+              <p className="mt-2 text-xs font-medium text-rose-400">
+                {errors.selling_price}
+              </p>
+            )}
         </div>
 
     ) : (
 
         <div>
             <label className={labelStyles}>
-                Loan Amount <span className="text-red-400">*</span>
+                Loan Amount <span className="text-rose-400">*</span>
             </label>
 
             <input
@@ -428,13 +405,18 @@ shadow-lg
                 onChange={handleChange}
                 className={inputStyles}
             />
+            {errors.loan_amount && (
+              <p className="mt-2 text-xs font-medium text-rose-400">
+                {errors.loan_amount}
+              </p>
+            )}
         </div>
 
     )}
         {formData.type === "Furniture" && (
         <div>
             <label className={labelStyles}>
-                Profit <span className="text-red-400">*</span>
+                Profit <span className="text-rose-400">*</span>
             </label>
 
             <input
@@ -447,6 +429,11 @@ shadow-lg
                 onChange={handleChange}
                 className={inputStyles}
             />
+            {errors.interest && (
+              <p className="mt-2 text-xs font-medium text-rose-400">
+                {errors.interest}
+              </p>
+            )}
         </div>
         )}
 
@@ -471,9 +458,9 @@ shadow-lg
         {formData.type === "Furniture" && (
           <div
             className="
-              bg-slate-800/60
+              bg-[#111827]
               border
-              border-slate-700
+              border-slate-800
               rounded-2xl
               p-5
               shadow-md
@@ -506,8 +493,8 @@ shadow-lg
         <div>
         <label className={labelStyles}>
             {formData.type === "DL"
-                ? <>Loan Date <span className="text-red-400">*</span></>
-                : <>Delivery Date <span className="text-red-400">*</span></>}
+                ? <>Loan Date <span className="text-rose-400">*</span></>
+                : <>Delivery Date <span className="text-rose-400">*</span></>}
         </label>
 
         <input
@@ -517,6 +504,11 @@ shadow-lg
             onChange={handleChange}
             className={`${inputStyles} color-scheme-dark`}
         />
+        {errors.loan_date && (
+          <p className="mt-2 text-xs font-medium text-rose-400">
+            {errors.loan_date}
+          </p>
+        )}
       </div>
 
         {formData.type === "DL" ? (
@@ -581,7 +573,7 @@ shadow-lg
 
         <div>
             <label className={labelStyles}>
-                Expected Completion <span className="text-red-400">*</span>
+                Expected Completion <span className="text-rose-400">*</span>
             </label>
 
             <input
@@ -591,6 +583,11 @@ shadow-lg
                 onChange={handleChange}
                 className={`${inputStyles} color-scheme-dark`}
             />
+            {errors.due_date && (
+              <p className="mt-2 text-xs font-medium text-rose-400">
+                {errors.due_date}
+              </p>
+            )}
         </div>
 
       )}

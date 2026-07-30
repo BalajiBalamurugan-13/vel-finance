@@ -10,7 +10,7 @@ function Sidebar({ sidebarOpen, setSidebarOpen })  {
         top-0 left-0
         h-screen
         w-64
-        bg-slate-900
+        bg-[#111827]
         border-r border-slate-800
         p-5
         z-50
@@ -28,7 +28,8 @@ function Sidebar({ sidebarOpen, setSidebarOpen })  {
 
       <button
         onClick={() => setSidebarOpen(false)}
-        className="text-3xl"
+        className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-800 text-slate-300 hover:text-white transition active:scale-95"
+        aria-label="Close menu"
       >
         ✕
       </button>
@@ -49,11 +50,11 @@ function Sidebar({ sidebarOpen, setSidebarOpen })  {
               to={item.path}
               onClick={() => setSidebarOpen(false)}
               className={({ isActive }) =>
-                `flex items-center gap-3 rounded-xl p-3 transition-all duration-200
+                `flex items-center gap-3 rounded-xl p-3.5 transition-all duration-200 font-medium
                 ${
                   isActive
-                    ? "bg-green-600 text-white"
-                    : "text-slate-300 hover:bg-slate-800"
+                    ? "bg-emerald-600 text-white shadow-md"
+                    : "text-slate-300 hover:bg-slate-800/80 hover:text-white"
                 }`
               }
             >

@@ -11,30 +11,30 @@ function ConfirmDialog({
     if (!open) return null;
 
     return (
-        <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[100]">
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100] p-4">
 
-            <div className="bg-slate-900 rounded-xl p-6 w-[420px] border border-slate-700">
+            <div className="bg-[#182238] rounded-2xl p-6 w-full max-w-sm mx-auto border border-slate-800 shadow-2xl space-y-4">
 
-                <h2 className="text-xl font-bold mb-3">
+                <h2 className="text-xl font-bold text-white">
                     {title}
                 </h2>
 
-                <p className="text-gray-400 whitespace-pre-line">
+                <p className="text-slate-300 text-sm leading-relaxed whitespace-pre-line">
                     {message}
                 </p>
 
-                <div className="flex justify-end gap-3 mt-8">
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
 
                     <button
                         onClick={onCancel}
-                        className="px-5 py-2 rounded-lg bg-slate-700 hover:bg-slate-600"
+                        className="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold transition active:scale-[0.98]"
                     >
                         {cancelText}
                     </button>
 
                     <button
                         onClick={onConfirm}
-                        className="px-5 py-2 rounded-lg bg-red-600 hover:bg-red-700"
+                        className="px-5 py-3 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-semibold transition active:scale-[0.98] shadow-md shadow-rose-950/30"
                     >
                         {confirmText}
                     </button>

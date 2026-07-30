@@ -67,16 +67,19 @@ function ViewCustomer() {
                     onChange={(e) => setSearch(e.target.value)}
                     className="
                         w-full
-                        bg-slate-900
+                        bg-[#0f172a]
                         border
-                        border-slate-700
+                        border-slate-700/80
                         rounded-xl
                         px-5
-                        py-4
+                        py-3.5
                         text-white
                         placeholder:text-slate-500
                         focus:outline-none
-                        focus:border-green-500
+                        focus:ring-2
+                        focus:ring-emerald-500
+                        focus:border-transparent
+                        transition-all
                     "
                 />
 

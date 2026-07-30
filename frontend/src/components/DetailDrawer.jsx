@@ -21,29 +21,30 @@ function DetailDrawer({
                 w-full md:w-full sm:w-[700px]
                 bg-[#111827]
                 border-l
-                border-slate-700
+                border-slate-800
                 flex
                 flex-col
+                shadow-2xl
             ">
 
                 {/* Header */}
 
                 {title || subtitle ? (
 
-                    <div className="p-6 border-b border-slate-700">
+                    <div className="p-6 border-b border-slate-800">
 
                         <div className="flex justify-between items-center">
 
                             <div>
 
                                 {title && (
-                                    <h2 className="text-2xl font-bold">
+                                    <h2 className="text-2xl font-bold text-white">
                                         {title}
                                     </h2>
                                 )}
 
                                 {subtitle && (
-                                    <p className="text-gray-400 text-sm mt-2">
+                                    <p className="text-slate-400 text-sm mt-1">
                                         {subtitle}
                                     </p>
                                 )}
@@ -52,7 +53,8 @@ function DetailDrawer({
 
                             <button
                                 onClick={onClose}
-                                className="text-2xl hover:text-red-400 transition"
+                                className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white transition active:scale-95"
+                                aria-label="Close drawer"
                             >
                                 ✕
                             </button>
@@ -62,7 +64,7 @@ function DetailDrawer({
                         {headers.length > 0 && (
 
                             <div
-                                className="grid mt-6 text-sm font-semibold text-gray-400"
+                                className="grid mt-6 text-sm font-semibold text-slate-400"
                                 style={{
                                     gridTemplateColumns: `repeat(${headers.length}, minmax(0,1fr))`
                                 }}
@@ -80,10 +82,11 @@ function DetailDrawer({
 
                 ) : (
 
-                    <div className="flex justify-end p-3">
+                    <div className="flex justify-end p-4 border-b border-slate-800">
                         <button
                             onClick={onClose}
-                            className="text-2xl hover:text-red-400 transition"
+                            className="w-10 h-10 flex items-center justify-center rounded-xl bg-slate-800/80 hover:bg-slate-800 text-slate-300 hover:text-white transition active:scale-95"
+                            aria-label="Close drawer"
                         >
                             ✕
                         </button>

@@ -4,24 +4,27 @@ function CustomerCard({ customer, onClick }) {
             onClick={onClick}
             className="
             w-full
-            bg-slate-900
+            bg-[#182238]
             border
             border-slate-800
             rounded-xl
-            px-3
-            py-3
-            hover:border-green-500
-            hover:bg-slate-800
-            transition
+            px-4
+            py-3.5
+            hover:border-emerald-500/50
+            hover:bg-[#1f2c49]
+            active:scale-[0.99]
+            transition-all
+            duration-200
             text-left
+            shadow-sm
             "
         >
             <div
-                className="grid items-center gap-2"
-                style={{ gridTemplateColumns: "35px 80px 1fr 50px" }}
+                className="grid items-center gap-2 text-sm"
+                style={{ gridTemplateColumns: "40px minmax(90px, 1fr) 1fr 55px" }}
             >
 
-                <div className="text-slate-300 font-medium">
+                <div className="text-slate-300 font-medium truncate">
                     {customer.customer_id}
                 </div>
 
@@ -33,7 +36,7 @@ function CustomerCard({ customer, onClick }) {
                 </div>
 
                 <div
-                    className="text-sm text-slate-400 truncate"
+                    className="text-xs text-slate-400 truncate"
                     title={customer.address}
                 >
                     {customer.address}
@@ -42,8 +45,8 @@ function CustomerCard({ customer, onClick }) {
                 <div
                     className={`text-xs font-semibold text-right ${
                         customer.loan_given
-                            ? "text-green-400"
-                            : "text-yellow-400"
+                            ? "text-emerald-400"
+                            : "text-amber-400"
                     }`}
                 >
                     {customer.loan_given ? "Active" : "Pending"}

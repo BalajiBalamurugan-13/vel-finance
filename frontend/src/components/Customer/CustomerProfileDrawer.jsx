@@ -223,13 +223,13 @@ function CustomerProfileDrawer({
         >
     <div className="space-y-4">
         <div className="
-            bg-[#24324A]
+            bg-[#182238]
+            border
+            border-slate-800
             rounded-2xl
-            px-5
-            py-5
-            shadow-xl
-            ring-1
-            ring-slate-500/40
+            p-5
+            shadow-lg
+            space-y-4
         ">
 
    
@@ -252,7 +252,7 @@ function CustomerProfileDrawer({
                             name: e.target.value
                         })
                     }
-                    className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white"
+                    className="w-full mt-1 bg-[#0f172a] border border-slate-700/80 rounded-xl px-3.5 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
                 />
             </div>
 
@@ -270,7 +270,7 @@ function CustomerProfileDrawer({
                             phone: e.target.value
                         })
                     }
-                    className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white"
+                    className="w-full mt-1 bg-[#0f172a] border border-slate-700/80 rounded-xl px-3.5 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
                 />
             </div>
 
@@ -288,7 +288,7 @@ function CustomerProfileDrawer({
                             address: e.target.value
                         })
                     }
-                    className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white resize-none"
+                    className="w-full mt-1 bg-[#0f172a] border border-slate-700/80 rounded-xl px-3.5 py-3 text-white resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
                 />
             </div>
 
@@ -306,7 +306,7 @@ function CustomerProfileDrawer({
                             due_date: e.target.value
                         })
                     }
-                    className="w-full mt-1 bg-slate-800 border border-slate-700 rounded-lg px-3 py-2 text-white"
+                    className="w-full mt-1 bg-[#0f172a] border border-slate-700/80 rounded-xl px-3.5 py-3 text-white color-scheme-dark focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
                 />
             </div>
 
@@ -354,38 +354,32 @@ function CustomerProfileDrawer({
 
         <div className="grid grid-cols-3 gap-3">
 
-            <div className="bg-[#192338]
-border
-border-slate-700 rounded-xl py-3 px-4 text-center">
-                <p className="text-xs text-slate-400">
+            <div className="bg-[#111827] border border-slate-800 rounded-xl py-3 px-4 text-center">
+                <p className="text-xs text-slate-400 font-medium">
                     Loan
                 </p>
 
-                <p className="text-lg lg:text-xl font-bold text-white mt-2">
+                <p className="text-lg lg:text-xl font-bold text-white mt-1">
                     ₹{customer.loan_amount}
                 </p>
             </div>
 
-            <div className="bg-[#192338]
-border
-border-slate-700 rounded-xl py-3 px-4 text-center">
-                <p className="text-xs text-slate-400">
+            <div className="bg-[#111827] border border-slate-800 rounded-xl py-3 px-4 text-center">
+                <p className="text-xs text-slate-400 font-medium">
                     Paid
                 </p>
 
-                <p className="text-lg lg:text-xl font-bold text-emerald-400 mt-2">
+                <p className="text-lg lg:text-xl font-bold text-emerald-400 mt-1">
                     ₹{customer.total_paid}
                 </p>
             </div>
 
-            <div className="bg-[#192338]
-                border
-                border-slate-700 rounded-xl py-3 px-4 text-center">
-                <p className="text-xs text-slate-400">
+            <div className="bg-[#111827] border border-slate-800 rounded-xl py-3 px-4 text-center">
+                <p className="text-xs text-slate-400 font-medium">
                     Balance
                 </p>
 
-                <p className="text-lg lg:text-xl font-bold text-orange-400 mt-2">
+                <p className="text-lg lg:text-xl font-bold text-amber-400 mt-1">
                     ₹{customer.balance}
                 </p>
             </div>
@@ -406,12 +400,12 @@ border-slate-700 rounded-xl py-3 px-4 text-center">
                     font-semibold
                     ${
                         !customer.loan_given
-                            ? "bg-yellow-500/20 text-yellow-400"
+                            ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
                             : customer.status === "OVERDUE"
-                            ? "bg-red-500/20 text-red-400"
+                            ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
                             : customer.balance === 0
-                            ? "bg-blue-500/20 text-blue-400"
-                            : "bg-green-500/20 text-green-400"
+                            ? "bg-sky-500/20 text-sky-400 border border-sky-500/30"
+                            : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                     }
                 `}
             >
@@ -428,22 +422,24 @@ border-slate-700 rounded-xl py-3 px-4 text-center">
         
         {customer.loan_given && !customer.ready_to_close && (
         <div className="
-            bg-[#111827]
+            bg-[#182238]
             border
             border-slate-800
             rounded-2xl
             p-5
+            shadow-lg
+            space-y-4
         ">
 
-            <h3 className="text-lg font-semibold mb-4">
+            <h3 className="text-lg font-semibold text-white">
                 💸 Quick Payment
             </h3>
 
             {/* Amount */}
 
-            <div className="mb-2">
+            <div>
 
-                <label className="block text-gray-400 mb-2">
+                <label className="block text-slate-300 text-sm font-medium mb-2">
                     Amount
                 </label>
 
@@ -454,15 +450,19 @@ border-slate-700 rounded-xl py-3 px-4 text-center">
                     placeholder="Enter amount"
                     className="
                         w-full
-                        bg-slate-800
+                        bg-[#0f172a]
                         border
-                        border-slate-700
-                        rounded-lg
+                        border-slate-700/80
+                        rounded-xl
                         px-4
-                        py-2
+                        py-3.5
                         text-white
+                        placeholder:text-slate-500
                         focus:outline-none
-                        focus:border-green-500
+                        focus:ring-2
+                        focus:ring-emerald-500
+                        focus:border-transparent
+                        transition-all
                     "
                 />
 
@@ -470,9 +470,9 @@ border-slate-700 rounded-xl py-3 px-4 text-center">
 
             {/* Payment Date */}
 
-            <div className="mb-4">
+            <div>
 
-                <label className="block text-gray-400 mb-2">
+                <label className="block text-slate-300 text-sm font-medium mb-2">
                     Collection Date
                 </label>
 
@@ -482,15 +482,19 @@ border-slate-700 rounded-xl py-3 px-4 text-center">
                     onChange={(e) => setPaymentDate(e.target.value)}
                     className="
                         w-full
-                        bg-slate-800
+                        bg-[#0f172a]
                         border
-                        border-slate-700
-                        rounded-lg
+                        border-slate-700/80
+                        rounded-xl
                         px-4
-                        py-2
+                        py-3.5
                         text-white
+                        color-scheme-dark
                         focus:outline-none
-                        focus:border-green-500
+                        focus:ring-2
+                        focus:ring-emerald-500
+                        focus:border-transparent
+                        transition-all
                     "
                 />
 
@@ -502,12 +506,16 @@ border-slate-700 rounded-xl py-3 px-4 text-center">
                 onClick={handlePayment}
                 className="
                     w-full
-                    bg-green-600
-                    hover:bg-green-700
-                    rounded-lg
-                    py-2
+                    bg-emerald-600
+                    hover:bg-emerald-500
+                    active:scale-[0.98]
+                    rounded-xl
+                    py-3.5
                     font-semibold
-                    transition
+                    text-white
+                    shadow-lg
+                    shadow-emerald-950/40
+                    transition-all
                 "
             >
                 Collect Payment
@@ -517,33 +525,34 @@ border-slate-700 rounded-xl py-3 px-4 text-center">
         )}
 
         <div className="
-    bg-[#111827]
-    border
-    border-slate-800
-    rounded-2xl
-    p-5
-">
+            bg-[#182238]
+            border
+            border-slate-800
+            rounded-2xl
+            p-5
+            shadow-lg
+        ">
 
-            <h3 className="text-lg font-semibold mb-2">
+            <h3 className="text-lg font-semibold text-white mb-3">
                 📊 Loan Progress
             </h3>
 
             <div className="flex justify-between text-sm mb-2">
 
-                <span>
+                <span className="text-slate-300 font-medium">
                     ₹{totalPaid} Paid
                 </span>
 
-                <span>
+                <span className="text-emerald-400 font-semibold">
                     {progress.toFixed(0)}%
                 </span>
 
             </div>
 
-            <div className="w-full bg-slate-700 rounded-full h-3">
+            <div className="w-full bg-[#0f172a] rounded-full h-3 overflow-hidden border border-slate-800">
 
                 <div
-                    className="bg-green-500 h-3 rounded-full transition-all duration-500"
+                    className="bg-emerald-500 h-3 rounded-full transition-all duration-500"
                     style={{
                         width: `${progress}%`
                     }}
@@ -551,7 +560,7 @@ border-slate-700 rounded-xl py-3 px-4 text-center">
 
             </div>
 
-            <div className="flex justify-between mt-3 text-gray-400">
+            <div className="flex justify-between mt-3 text-xs text-slate-400">
 
                 <span>
                     Loan ₹{loanAmount}
@@ -567,9 +576,9 @@ border-slate-700 rounded-xl py-3 px-4 text-center">
 
 
         {customer.type === "DL" && !customer.loan_given && (
-        <div className="bg-amber-500/10 border border-amber-500 rounded-xl py-3 px-4">
+        <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl py-3.5 px-4">
 
-            <p className="text-amber-400 font-semibold mb-2">
+            <p className="text-amber-400 font-semibold mb-2 text-sm">
                 ⚠️ Loan has not been activated yet.
             </p>
 
@@ -579,9 +588,10 @@ border-slate-700 rounded-xl py-3 px-4 text-center">
                     w-full
                     bg-amber-500
                     hover:bg-amber-600
-                    rounded-lg
-                    py-2
+                    rounded-xl
+                    py-3
                     font-semibold
+                    text-slate-950
                     transition
                 "
             >
@@ -594,20 +604,21 @@ border-slate-700 rounded-xl py-3 px-4 text-center">
         
         {customer.loan_given && (
         <div className="
-    bg-[#111827]
-    border
-    border-slate-800
-    rounded-2xl
-    p-5
-">
+            bg-[#182238]
+            border
+            border-slate-800
+            rounded-2xl
+            p-5
+            shadow-lg
+        ">
 
-            <h3 className="text-lg font-semibold mb-4">
+            <h3 className="text-lg font-semibold text-white mb-4">
                 💳 Payment History
             </h3>
 
             {customer.transactions.length === 0 ? (
 
-                <div className="text-gray-400">
+                <div className="text-slate-400 text-sm">
                     No payments yet.
                 </div>
 
@@ -655,12 +666,15 @@ border-slate-700 rounded-xl py-3 px-4 text-center">
                     onClick={() => setShowCloseLoanDialog(true)}
                     className="
                         w-full
-                        bg-green-600
-                        hover:bg-green-700
-                        rounded-lg
-                        py-2
+                        bg-emerald-600
+                        hover:bg-emerald-500
+                        active:scale-[0.98]
+                        rounded-xl
+                        py-3.5
                         font-semibold
-                        transition
+                        text-white
+                        shadow-lg
+                        transition-all
                     "
                 >
                     ✅ Close Loan
@@ -672,12 +686,15 @@ border-slate-700 rounded-xl py-3 px-4 text-center">
                     onClick={() => setShowDeleteDialog(true)}
                     className="
                         w-full
-                        bg-red-600
-                        hover:bg-red-700
-                        rounded-lg
-                        py-2
+                        bg-rose-600
+                        hover:bg-rose-500
+                        active:scale-[0.98]
+                        rounded-xl
+                        py-3.5
                         font-semibold
-                        transition
+                        text-white
+                        shadow-lg
+                        transition-all
                     "
                 >
                     🗑 Delete Customer
@@ -694,7 +711,7 @@ border-slate-700 rounded-xl py-3 px-4 text-center">
 
                 <button
                     onClick={handleUpdateCustomer}
-                    className="bg-green-600 hover:bg-green-700 px-3 py-1.5 rounded-lg text-sm"
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-500 py-3 rounded-xl text-white font-semibold shadow-md active:scale-[0.98] transition-all"
                 >
                     Save
                 </button>
@@ -710,7 +727,7 @@ border-slate-700 rounded-xl py-3 px-4 text-center">
                             due_date: customer.due_date || ""
                         });
                     }}
-                    className="bg-slate-700 hover:bg-slate-600 px-3 py-1.5 rounded-lg text-sm"
+                    className="flex-1 bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-slate-300 font-semibold active:scale-[0.98] transition-all"
                 >
                     Cancel
                 </button>
@@ -722,14 +739,17 @@ border-slate-700 rounded-xl py-3 px-4 text-center">
             <button
                 onClick={() => setIsEditing(true)}
                 className="
-w-full
-bg-blue-600
-hover:bg-blue-700
-rounded-lg
-py-2
-font-semibold
-transition
-"
+                    w-full
+                    bg-sky-600
+                    hover:bg-sky-500
+                    active:scale-[0.98]
+                    rounded-xl
+                    py-3.5
+                    font-semibold
+                    text-white
+                    shadow-lg
+                    transition-all
+                "
             >
                 ✏️ Edit
             </button>
