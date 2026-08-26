@@ -1,10 +1,11 @@
-import {
+﻿import {
   FiHome,
   FiUsers,
   FiUserPlus,
   FiDollarSign,
   FiClock,
   FiBarChart2,
+  FiClipboard,
 } from "react-icons/fi";
 
 const navigation = [
@@ -37,6 +38,11 @@ const navigation = [
     name: "Business Summary",
     path: "/business-summary",
     icon: FiBarChart2,
+  },
+  {
+    name: "Collection Sheet",
+    path: "/collection-sheet",
+    icon: FiClipboard,
   },
 ];
 

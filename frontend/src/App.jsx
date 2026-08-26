@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+﻿import { Routes, Route } from "react-router-dom";
 
 import MainLayout from "./layouts/MainLayout";
 
@@ -8,6 +8,7 @@ import AddCustomer from "./pages/AddCustomer";
 import AddExpense from "./pages/AddExpense";
 import History from "./pages/History";
 import BusinessSummary from "./pages/BusinessSummary";
+import CollectionSheet from "./pages/CollectionSheet";
 
 function App() {
   return (
@@ -19,6 +20,7 @@ function App() {
         <Route path="/expenses" element={<AddExpense />} />
         <Route path="/history" element={<History />} />
         <Route path="/business-summary" element={<BusinessSummary />} />
+        <Route path="/collection-sheet" element={<CollectionSheet />} />
       </Routes>
     </MainLayout>
   );
