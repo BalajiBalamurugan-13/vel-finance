@@ -24,50 +24,66 @@ function toDisplayDate(isoStr) {
 // ─── A4 Landscape print layout ──────────────────────────────────────────────
 //
 //  Physical paper:     297mm wide × 210mm tall (A4 landscape)
-//  @page margins:      7mm top + 7mm bottom, 8mm left + 8mm right
-//  Usable height:      210 - 14 = 196mm
-//  Usable width:       297 - 16 = 281mm
+//  @page margins:      10mm uniform (all sides)
+//
+//  WHY 10mm MARGINS:
+//    Mobile browsers (Safari, Chrome) enforce a minimum printable margin
+//    of approximately 10–12mm. If we specify smaller margins (7mm, 8mm),
+//    the browser silently enforces its own larger margin but our content
+//    was sized for the smaller margin → content overflows the printable
+//    area → user must manually scale to 92% on mobile.
+//    Using 10mm aligns with the minimum enforced by all major browsers
+//    so the content fits at 100% scale on both desktop and mobile.
+//
+//  Usable height:      210 - 20 = 190mm
+//  Usable width:       297 - 20 = 277mm
 //
 //  Vertical space consumed by non-row elements:
-//    Print header (title + subtitle + date + border + gap)  = 14mm
-//    Table <thead> column labels                            =  6mm
+//    Print header (title + subtitle + date + border + gap)  = 12mm
+//    Table <thead> column labels                            =  5.5mm
 //    Table outer border (top + bottom)                      =  0.5mm
 //  ─────────────────────────────────────────────────────────────
-//    Available for data rows = 196 - 14 - 6 - 0.5 = 175.5mm
+//    Available for data rows = 190 - 12 - 5.5 - 0.5 = 172mm
 //
 //  Row design:
-//    CSS td height  = 7mm   (college-ruled spacing — comfortable for numbers)
+//    CSS td height  = 6.5mm  (between college-ruled 7.1mm and narrow-ruled 6.4mm)
 //    Border pitch   = ~0.2mm per row (collapsed 0.5pt border)
-//    Effective pitch = 7.2mm per row
+//    Effective pitch = 6.7mm per row
 //
-//  Rows per half-table = floor(175.5 / 7.2) = 24
-//  Safety buffer        = -2 rows (accounts for browser rendering variance)
-//  Final rows per half  = 22
-//  Customers per page   = 22 × 2 = 44
+//  Rows per half-table = floor(172 / 6.7) = 25
+//  Safety buffer       = -1 row (portal rendering eliminates wrapper interference)
+//  Final rows per half = 24
+//  Customers per page  = 24 × 2 = 48
 //
-//  With 225 active customers: ceil(225 / 44) = 6 pages
+//  With 225 active customers: ceil(225 / 48) = 5 pages
 //
-//  IMPORTANT: The .print-document is rendered via React Portal as a direct
-//  child of <body>, completely outside the #root application tree.
-//  In @media print, #root is hidden entirely — no mobile header, no sidebar,
-//  no layout padding, no dark backgrounds can interfere with pagination.
+//  PAGINATION RULE:
+//    On every page, fill the LEFT table first (up to ROWS_PER_HALF).
+//    Only after the left table is full do customers continue in the RIGHT table.
+//    On the final page, if fewer than ROWS_PER_HALF customers remain,
+//    they all appear sequentially in the LEFT table; the right table stays empty.
+//
+//  PORTAL RENDERING:
+//    The .print-document is rendered via React Portal as a direct child of
+//    <body>, completely outside the #root application tree.
+//    In @media print, #root is hidden entirely.
 
 const A4_H_MM          = 210;
-const PAGE_MARGIN_MM   =   7;
-const USABLE_H_MM      = A4_H_MM - PAGE_MARGIN_MM * 2;        // 196mm
+const PAGE_MARGIN_MM   =  10;     // uniform 10mm — safe for desktop + mobile
+const USABLE_H_MM      = A4_H_MM - PAGE_MARGIN_MM * 2;        // 190mm
 
-const HEADER_H_MM      =  14;    // print header block
-const THEAD_H_MM       =   6;    // table column header
+const HEADER_H_MM      =  12;    // print header block (compact)
+const THEAD_H_MM       = 5.5;    // table column header row
 const TABLE_BORDER_MM  = 0.5;    // outer borders
 
-const AVAILABLE_H_MM   = USABLE_H_MM - HEADER_H_MM - THEAD_H_MM - TABLE_BORDER_MM;  // 175.5mm
+const AVAILABLE_H_MM   = USABLE_H_MM - HEADER_H_MM - THEAD_H_MM - TABLE_BORDER_MM;  // 172mm
 
-const ROW_CSS_H_MM     =   7;    // CSS height on <td> — college-ruled spacing
-const ROW_PITCH_MM     = 7.2;    // effective pitch including collapsed border
-const SAFETY_ROWS      =   2;    // browser rendering safety buffer
+const ROW_CSS_H_MM     = 6.5;    // CSS height on <td> — comfortable for handwriting
+const ROW_PITCH_MM     = 6.7;    // effective pitch including collapsed border
+const SAFETY_ROWS      =   1;    // portal eliminates wrapper interference, 1 row buffer is sufficient
 
-const ROWS_PER_HALF    = Math.floor(AVAILABLE_H_MM / ROW_PITCH_MM) - SAFETY_ROWS;  // 22
-const CUSTOMERS_PER_PAGE = ROWS_PER_HALF * 2;                                       // 44
+const ROWS_PER_HALF    = Math.floor(AVAILABLE_H_MM / ROW_PITCH_MM) - SAFETY_ROWS;  // 24
+const CUSTOMERS_PER_PAGE = ROWS_PER_HALF * 2;                                       // 48
 
 // ────────────────────────────────────────────────────────────────────────────
 
@@ -94,7 +110,8 @@ function CollectionSheet() {
       const renderedIds = [];
       for (let i = 0; i < active.length; i += CUSTOMERS_PER_PAGE) {
         const chunk = active.slice(i, i + CUSTOMERS_PER_PAGE);
-        const mid = Math.ceil(chunk.length / 2);
+        // LEFT-FIRST: fill left table to capacity, remainder goes to right
+        const mid = Math.min(chunk.length, ROWS_PER_HALF);
         chunk.slice(0, mid).forEach((c) => renderedIds.push(c.customer_id));
         chunk.slice(mid).forEach((c) => renderedIds.push(c.customer_id));
       }
@@ -128,10 +145,12 @@ function CollectionSheet() {
   useEffect(() => { loadCustomers(); }, []);
 
   // ── Pagination ────────────────────────────────────────────────────────────
+  // LEFT-FIRST rule: fill left table up to ROWS_PER_HALF, then right table.
+  // On the final page with fewer customers, they all go in the left table.
   const pages = [];
   for (let i = 0; i < customers.length; i += CUSTOMERS_PER_PAGE) {
     const chunk = customers.slice(i, i + CUSTOMERS_PER_PAGE);
-    const mid = Math.ceil(chunk.length / 2);
+    const mid = Math.min(chunk.length, ROWS_PER_HALF);
     pages.push({
       left: chunk.slice(0, mid),
       right: chunk.slice(mid),
@@ -210,11 +229,7 @@ function CollectionSheet() {
 
       {/* ═══ PRINT DOCUMENT ══════════════════════════════════════════════════
           Rendered via createPortal as a DIRECT CHILD of <body>.
-          This places it OUTSIDE the #root application tree entirely.
-          In @media print, #root is set to display:none — so the mobile
-          header, sidebar, layout padding, dark backgrounds, and min-h-screen
-          are all completely eliminated from the print output.
-          Only this .print-document div is visible when printing.
+          Outside #root — mobile header, sidebar, padding cannot interfere.
       ═════════════════════════════════════════════════════════════════════ */}
       {createPortal(
         <div className="print-document">
