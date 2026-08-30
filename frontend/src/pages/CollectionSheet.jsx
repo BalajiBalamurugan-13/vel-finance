@@ -1,9 +1,11 @@
-﻿import { useState, useEffect } from "react";
+import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { getCustomers } from "../services/customerService";
 import PageHeader from "../components/PageHeader";
 import { FiPrinter, FiRefreshCw, FiCalendar, FiUsers } from "react-icons/fi";
+import logoWatermark from "../assets/Vel finance logo white.png";
 
+// Date Utilities
 function toInputDate(date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -21,73 +23,40 @@ function toDisplayDate(isoStr) {
   });
 }
 
-// ─── A4 Landscape print layout ──────────────────────────────────────────────
-//
-//  Physical paper:     297mm wide × 210mm tall (A4 landscape)
-//  @page margins:      12mm uniform (all sides)
-//
-//  WHY 12mm MARGINS:
-//    Mobile browsers (iPhone Safari, mobile Chrome) enforce their own
-//    minimum printable margins of approximately 12–13mm. If we specify
-//    smaller margins (7mm, 8mm, or even 10mm), the browser silently
-//    enforces its larger minimum but our content was sized for the
-//    smaller area → content overflows → browser auto-scales to 95%.
-//
-//    Using 12mm aligns with the enforced mobile minimum.
-//    The content fits at 100% scale on both desktop and mobile Safari.
-//    No manual scaling is needed on any device.
-//
-//  Usable height:      210 - 24 = 186mm
-//  Usable width:       297 - 24 = 273mm
-//
-//  Vertical space consumed by non-row elements:
-//    Print header (title + subtitle + date + border + gap)  = 12mm
-//    Table <thead> column labels                            =  5.5mm
-//    Table outer border (top + bottom)                      =  0.5mm
-//  ─────────────────────────────────────────────────────────────
-//    Available for data rows = 186 - 12 - 5.5 - 0.5 = 168mm
-//
-//  Row design:
-//    CSS td height  = 6.5mm  (between college-ruled 7.1mm and narrow-ruled 6.4mm)
-//    Border pitch   = ~0.3mm per row (collapsed 0.75pt border)
-//    Effective pitch = 6.8mm per row
-//
-//  Rows per half-table = floor(168 / 6.8) = 24
-//  Safety buffer       = 0 rows (portal + generous 12mm margins eliminate overflow risk)
-//  Final rows per half = 24
-//  Customers per page  = 24 × 2 = 48
-//
-//  With 225 active customers: ceil(225 / 48) = 5 pages
-//
-//  PAGINATION RULE:
-//    On every page, fill the LEFT table first (up to ROWS_PER_HALF).
-//    Only after the left table is full do customers continue in the RIGHT table.
-//    On the final page, if fewer than ROWS_PER_HALF customers remain,
-//    they all appear sequentially in the LEFT table; the right table stays empty.
-//
-//  PORTAL RENDERING:
-//    The .print-document is rendered via React Portal as a direct child of
-//    <body>, completely outside the #root application tree.
-//    In @media print, #root is hidden entirely.
+// DL Daily Collection Amount
+// Source of truth: AddCustomer.jsx calculateLoanDetails()
+//   dailyCollection = loan_amount / 100  (DL only)
+// Furniture customers get a blank cell - collector writes manually.
+function getDailyAmount(customer) {
+  if (customer.type !== "DL") return "";
+  const loanAmount = Number(customer.loan_amount) || 0;
+  if (loanAmount <= 0) return "";
+  return String(Math.round(loanAmount / 100));
+}
 
-const A4_H_MM          = 210;
-const PAGE_MARGIN_MM   =  12;     // uniform 12mm — safe for desktop + mobile Safari
-const USABLE_H_MM      = A4_H_MM - PAGE_MARGIN_MM * 2;        // 186mm
+// A4 Landscape Print Layout
+//
+// Physical paper:  297 mm wide x 210 mm tall  (A4 landscape)
+// @page margin:    10 mm all sides
+//   Printable width:  297 - 20 = 277 mm
+//   Printable height: 210 - 20 = 190 mm
+//
+// 10 mm margins: aligns with mobile Safari minimum to prevent auto-scaling
+//
+// Vertical budget (190 mm):
+//   Header block                       =  9.5 mm
+//   Table thead row                    =  5.0 mm
+//   Table outer border (top + bottom)  =  0.5 mm
+//   Available for data rows            = 175.0 mm
+//
+// Row: 6.0 mm height + ~0.26 mm border = 6.26 mm effective pitch
+// Rows per half = floor(175 / 6.26) = 27
+// Customers per page = 27 x 2 = 54
 
-const HEADER_H_MM      =  12;    // print header block (compact)
-const THEAD_H_MM       = 5.5;    // table column header row
-const TABLE_BORDER_MM  = 0.5;    // outer borders
-
-const AVAILABLE_H_MM   = USABLE_H_MM - HEADER_H_MM - THEAD_H_MM - TABLE_BORDER_MM;  // 168mm
-
-const ROW_CSS_H_MM     = 6.5;    // CSS height on <td> — comfortable for handwriting
-const ROW_PITCH_MM     = 6.8;    // effective pitch including collapsed 0.75pt border
-const SAFETY_ROWS      =   0;    // 12mm margins + portal = generous buffer, no extra safety needed
-
-const ROWS_PER_HALF    = Math.floor(AVAILABLE_H_MM / ROW_PITCH_MM) - SAFETY_ROWS;  // 24
-const CUSTOMERS_PER_PAGE = ROWS_PER_HALF * 2;                                       // 48
-
-// ────────────────────────────────────────────────────────────────────────────
+const AVAIL_ROW_MM       = 175;   // 190 - 9.5 - 5.0 - 0.5
+const ROW_PITCH_MM       = 6.26;
+const ROWS_PER_HALF      = Math.floor(AVAIL_ROW_MM / ROW_PITCH_MM); // 27
+const CUSTOMERS_PER_PAGE = ROWS_PER_HALF * 2;                        // 54
 
 function CollectionSheet() {
   const today = toInputDate(new Date());
@@ -102,38 +71,33 @@ function CollectionSheet() {
     try {
       const data = await getCustomers();
 
-      // Active customer filter — same logic as CustomerCard "Active" badge.
-      // loan_given === true means the customer has an active loan.
+      // Active filter: loan_given === true
       const active = data
         .filter((c) => c.loan_given)
         .sort((a, b) => a.customer_id - b.customer_id);
 
-      // ── Data integrity audit (temporary, console only) ──────────────────
+      // Data integrity audit (console only)
       const renderedIds = [];
       for (let i = 0; i < active.length; i += CUSTOMERS_PER_PAGE) {
         const chunk = active.slice(i, i + CUSTOMERS_PER_PAGE);
-        // LEFT-FIRST: fill left table to capacity, remainder goes to right
-        const mid = Math.min(chunk.length, ROWS_PER_HALF);
+        const mid   = Math.min(chunk.length, ROWS_PER_HALF);
         chunk.slice(0, mid).forEach((c) => renderedIds.push(c.customer_id));
-        chunk.slice(mid).forEach((c) => renderedIds.push(c.customer_id));
+        chunk.slice(mid).forEach((c)   => renderedIds.push(c.customer_id));
       }
       const activeIds = active.map((c) => c.customer_id);
-      const missing = activeIds.filter((id) => !renderedIds.includes(id));
-      const dupes = renderedIds.filter((id, i) => renderedIds.indexOf(id) !== i);
+      const missing   = activeIds.filter((id) => !renderedIds.includes(id));
+      const dupes     = renderedIds.filter((id, i) => renderedIds.indexOf(id) !== i);
 
-      console.log("[CollectionSheet] Data integrity audit", {
-        totalFromAPI: data.length,
-        totalActive: active.length,
-        totalRendered: renderedIds.length,
-        missingIds: missing,
-        duplicateIds: dupes,
-        customer309: data.find((c) => c.customer_id === 309) || "NOT IN API",
-        customer309Active: active.some((c) => c.customer_id === 309) ? "YES" : "NO",
-        rowsPerHalf: ROWS_PER_HALF,
+      console.log("[CollectionSheet] Audit", {
+        totalFromAPI:     data.length,
+        totalActive:      active.length,
+        totalRendered:    renderedIds.length,
+        missingIds:       missing,
+        duplicateIds:     dupes,
+        rowsPerHalf:      ROWS_PER_HALF,
         customersPerPage: CUSTOMERS_PER_PAGE,
-        totalPages: Math.ceil(active.length / CUSTOMERS_PER_PAGE),
+        totalPages:       Math.ceil(active.length / CUSTOMERS_PER_PAGE),
       });
-      // ──────────────────────────────────────────────────────────────────────
 
       setCustomers(active);
     } catch (err) {
@@ -146,25 +110,44 @@ function CollectionSheet() {
 
   useEffect(() => { loadCustomers(); }, []);
 
-  // ── Pagination ────────────────────────────────────────────────────────────
-  // LEFT-FIRST rule: fill left table up to ROWS_PER_HALF, then right table.
-  // On the final page with fewer customers, they all go in the left table.
+  // Pagination - LEFT-FIRST rule
   const pages = [];
   for (let i = 0; i < customers.length; i += CUSTOMERS_PER_PAGE) {
     const chunk = customers.slice(i, i + CUSTOMERS_PER_PAGE);
-    const mid = Math.min(chunk.length, ROWS_PER_HALF);
+    const mid   = Math.min(chunk.length, ROWS_PER_HALF);
     pages.push({
-      left: chunk.slice(0, mid),
+      left:  chunk.slice(0, mid),
       right: chunk.slice(mid),
     });
   }
 
   const displayDate = toDisplayDate(selectedDate);
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  function handlePrint() {
+    const originalTitle = document.title;
+    const dateFormatted = toDisplayDate(selectedDate);
+    document.title = dateFormatted
+      ? `VEL Finance - Daily Collection - ${dateFormatted}`
+      : "VEL Finance - Daily Collection";
+
+    const restoreTitle = () => {
+      document.title = originalTitle;
+      window.removeEventListener("afterprint", restoreTitle);
+    };
+
+    window.addEventListener("afterprint", restoreTitle);
+
+    try {
+      window.print();
+    } finally {
+      // Restore after print dialog closes or asynchronously
+      setTimeout(restoreTitle, 500);
+    }
+  }
+
   return (
     <>
-      {/* ═══ SCREEN UI ═══════════════════════════════════════════════════════ */}
+      {/* SCREEN UI */}
       <div className="no-print max-w-2xl mx-auto px-5 py-6 pb-10">
         <PageHeader
           title="Collection Sheet"
@@ -219,7 +202,7 @@ function CollectionSheet() {
           )}
 
           <button
-            onClick={() => window.print()}
+            onClick={handlePrint}
             disabled={loading || !!error || customers.length === 0}
             className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed active:scale-[0.98] rounded-xl py-3.5 font-semibold text-white shadow-lg shadow-emerald-950/40 transition-all"
           >
@@ -229,14 +212,20 @@ function CollectionSheet() {
         </div>
       </div>
 
-      {/* ═══ PRINT DOCUMENT ══════════════════════════════════════════════════
-          Rendered via createPortal as a DIRECT CHILD of <body>.
-          Outside #root — mobile header, sidebar, padding cannot interfere.
-      ═════════════════════════════════════════════════════════════════════ */}
+      {/* PRINT DOCUMENT - React Portal renders directly on <body>, outside #root */}
       {createPortal(
         <div className="print-document">
           {pages.map((page, pageIdx) => (
             <div key={pageIdx} className="print-page">
+              {/* Centered background watermark */}
+              <div className="print-watermark" aria-hidden="true">
+                <img
+                  src={logoWatermark}
+                  alt=""
+                  className="print-watermark-img"
+                />
+              </div>
+
               <div className="print-header">
                 <div className="print-title">VEL FINANCE</div>
                 <div className="print-subtitle">Daily Collection Sheet</div>
@@ -244,6 +233,7 @@ function CollectionSheet() {
               </div>
 
               <div className="print-tables-row">
+                {/* LEFT TABLE */}
                 <div className="print-table-wrap">
                   <table className="print-table">
                     <thead>
@@ -251,6 +241,7 @@ function CollectionSheet() {
                         <th className="col-id">ID</th>
                         <th className="col-name">Name</th>
                         <th className="col-amount">Amount</th>
+                        <th className="col-extra">Extra</th>
                         <th className="col-balance">Balance</th>
                       </tr>
                     </thead>
@@ -259,7 +250,8 @@ function CollectionSheet() {
                         <tr key={c.customer_id} className="print-row">
                           <td className="col-id">{c.customer_id}</td>
                           <td className="col-name">{c.name}</td>
-                          <td className="col-amount"></td>
+                          <td className="col-amount">{getDailyAmount(c)}</td>
+                          <td className="col-extra"></td>
                           <td className="col-balance"></td>
                         </tr>
                       ))}
@@ -269,6 +261,7 @@ function CollectionSheet() {
 
                 <div className="print-center-gap" aria-hidden="true" />
 
+                {/* RIGHT TABLE */}
                 <div className="print-table-wrap">
                   {page.right.length > 0 && (
                     <table className="print-table">
@@ -277,6 +270,7 @@ function CollectionSheet() {
                           <th className="col-id">ID</th>
                           <th className="col-name">Name</th>
                           <th className="col-amount">Amount</th>
+                          <th className="col-extra">Extra</th>
                           <th className="col-balance">Balance</th>
                         </tr>
                       </thead>
@@ -285,7 +279,8 @@ function CollectionSheet() {
                           <tr key={c.customer_id} className="print-row">
                             <td className="col-id">{c.customer_id}</td>
                             <td className="col-name">{c.name}</td>
-                            <td className="col-amount"></td>
+                            <td className="col-amount">{getDailyAmount(c)}</td>
+                            <td className="col-extra"></td>
                             <td className="col-balance"></td>
                           </tr>
                         ))}

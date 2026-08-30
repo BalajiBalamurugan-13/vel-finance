@@ -164,7 +164,9 @@ def get_customers():
             name,
             address,
             loan_given,
-            ready_to_close
+            ready_to_close,
+            loan_amount,
+            type
         """)
         .execute()
     )

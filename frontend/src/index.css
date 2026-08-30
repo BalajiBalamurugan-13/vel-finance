@@ -1,4 +1,4 @@
-﻿@import "tailwindcss";
+@import "tailwindcss";
 
 html,
 body,
@@ -11,48 +11,67 @@ body,
 }
 
 .color-scheme-dark {
-    color-scheme: dark;
+  color-scheme: dark;
 }
 
-/* ════════════════════════════════════════════════════════════
+/* ════════════════════════════════════════════════════════════════════════════
    SCREEN: Hide the print document (rendered via portal on body)
-   ════════════════════════════════════════════════════════════ */
+   ════════════════════════════════════════════════════════════════════════════ */
 .print-document {
   display: none;
 }
 
-/* ════════════════════════════════════════════════════════════
-   PRINT: VEL Finance A4 Landscape Daily Collection Sheet
+/* ════════════════════════════════════════════════════════════════════════════
+   PRINT: VEL Finance – A4 Landscape Daily Collection Sheet
+   ════════════════════════════════════════════════════════════════════════════
 
    Rendered via React Portal as a direct child of <body>.
-   #root is hidden entirely in print.
+   #root is hidden entirely in print so no app chrome leaks in.
 
-   MARGIN STRATEGY (12mm):
-   Mobile Safari enforces a minimum printable margin of ~12–13mm.
-   With smaller margins (7–10mm), the browser auto-scales to 95%.
-   12mm aligns with the mobile browser minimum so content fits
-   at exactly 100% scale on both desktop Chrome and mobile Safari.
+   ── MARGIN STRATEGY (10 mm) ──────────────────────────────────────────────
+   Mobile Safari enforces a minimum printable margin of ~10–12 mm.
+   Using 10 mm aligns with that minimum:
+     • Content is sized for 10 mm margins.
+     • Browser does NOT need to auto-scale to fit.
+     • Result: 100 % scale on desktop Chrome AND mobile Safari.
 
-   BORDER STRATEGY:
-   Mobile PDF engines (especially iPhone Save-to-PDF) do not
-   reliably render sub-1pt borders. All cell borders use 0.75pt
-   minimum with a dark enough gray (#888) to remain visible
-   in both screen preview and physical/PDF output.
-   ════════════════════════════════════════════════════════════ */
+   ── PRINTABLE AREA MATH ──────────────────────────────────────────────────
+   A4 landscape: 297 mm × 210 mm
+   Margins:      10 mm all sides
+   Printable:    277 mm wide  ×  190 mm tall
+
+   ── WIDTH LAYOUT (277 mm) ────────────────────────────────────────────────
+   Center gap between tables:  4 mm  (fixed)
+   Each table:                (277 - 4) / 2  =  136.5 mm  (flex: 1)
+
+   Five-column proportions per table (136.5 mm total):
+     ID       =  9 %  ≈  12.3 mm   (3-digit IDs)
+     Name     = 36 %  ≈  49.1 mm   (longest field)
+     Amount   = 20 %  ≈  27.3 mm   (pre-filled for DL)
+     Extra    = 16 %  ≈  21.8 mm   (manual entry)
+     Balance  = 19 %  ≈  25.9 mm   (manual entry)
+     ─────────────────────────────────────────
+     Total    = 100 % = 136.5 mm   ✓
+
+   ── BORDER STRATEGY ──────────────────────────────────────────────────────
+   Mobile PDF engines (iPhone Save-to-PDF) do not reliably render
+   sub-1 pt borders. All cell borders use ≥ 0.75 pt with ≥ #888 gray
+   for visibility in both screen preview and physical/PDF output.
+   ════════════════════════════════════════════════════════════════════════════ */
 @media print {
 
-  /* ── 1. A4 Landscape page rule ──────────────────────────── */
+  /* 1. A4 Landscape page rule */
   @page {
     size: A4 landscape;
-    margin: 12mm;
+    margin: 10mm;
   }
 
-  /* ── 2. Hide entire application ─────────────────────────── */
+  /* 2. Hide entire application */
   #root {
     display: none !important;
   }
 
-  /* ── 3. Reset body for clean white paper ────────────────── */
+  /* 3. Reset body for clean white paper */
   html,
   body {
     margin: 0 !important;
@@ -68,7 +87,7 @@ body,
     print-color-adjust: exact;
   }
 
-  /* ── 4. Show print document ─────────────────────────────── */
+  /* 4. Show print document */
   .print-document {
     display: block !important;
     background: #ffffff;
@@ -77,18 +96,20 @@ body,
     box-sizing: border-box;
   }
 
-  /* ── 5. Each .print-page = one physical A4 sheet ─────────
+  /* 5. Each .print-page = one physical A4 sheet
      height: auto — sized by content (fixed-height rows).
-     page-break-after: always pushes next page to new sheet.
+     page-break-after forces next page to a new sheet.
      Rows are NEVER stretched to fill remaining space.
-  ─────────────────────────────────────────────────────────── */
+  */
   .print-page {
+    position: relative;
     width: 100%;
     box-sizing: border-box;
     background: #ffffff;
     page-break-after: always;
     break-after: page;
-    overflow: visible;
+    overflow: hidden;
+    /* prevent any stray content from widening the page */
   }
 
   .print-page:last-child {
@@ -96,159 +117,222 @@ body,
     break-after: auto;
   }
 
-  /* ── 6. Header: compact, authoritative ──────────────────── */
+  /* 5b. Centered background watermark - subtle 6% opacity */
+  .print-watermark {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  .print-watermark-img {
+    width: 130mm;
+    height: 130mm;
+    max-width: 130mm;
+    max-height: 130mm;
+    object-fit: contain;
+    opacity: 0.07;
+    filter: grayscale(100%) contrast(125%) brightness(95%);
+    mix-blend-mode: multiply;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* 6. Header: compact, authoritative, branded */
   .print-header {
+    position: relative;
+    z-index: 1;
     text-align: center;
-    padding-bottom: 1.2mm;
-    margin-bottom: 1.5mm;
+    padding-bottom: 1mm;
+    margin-bottom: 1.2mm;
     border-bottom: 0.75pt solid #222222;
-    line-height: 1.25;
+    line-height: 1.2;
   }
 
   .print-title {
     font-size: 11pt;
-    font-weight: 700;
-    letter-spacing: 0.1em;
+    font-weight: 800;
+    letter-spacing: 0.12em;
     text-transform: uppercase;
-    color: #000000;
+    /* Subtle deep-teal brand color — professional, not garish */
+    color: #1a5276;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   .print-subtitle {
-    font-size: 7pt;
+    font-size: 6.5pt;
     font-weight: 600;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.07em;
     text-transform: uppercase;
     color: #333333;
     margin-top: 0.3mm;
   }
 
   .print-date {
-    font-size: 6.5pt;
-    color: #444444;
-    margin-top: 0.5mm;
+    font-size: 6pt;
+    color: #555555;
+    margin-top: 0.4mm;
   }
 
-  /* ── 7. Two tables side-by-side ─────────────────────────── */
+  /* 7. Two tables side-by-side
+     Use flex so each table takes exactly half of the printable width
+     minus the center gap. overflow: hidden on the row prevents any
+     accidental right-edge spillover.
+  */
   .print-tables-row {
+    position: relative;
+    z-index: 1;
     display: flex;
     flex-direction: row;
     align-items: flex-start;
     width: 100%;
     box-sizing: border-box;
-    overflow: visible;
+    overflow: hidden;
   }
 
   .print-table-wrap {
     flex: 1;
     min-width: 0;
-    overflow: visible;
+    /* allows flex item to shrink below its content width */
+    overflow: hidden;
   }
 
-  /* ── 8. Center gap — empty, no text, no decoration ──────── */
+  /* 8. Center gap — empty spacer, no text, no decoration */
   .print-center-gap {
     width: 4mm;
     flex-shrink: 0;
   }
 
-  /* ── 9. Data table ──────────────────────────────────────────
-     BORDER FIX: 1pt outer border ensures the table frame is
-     clearly visible in all PDF renderers including mobile.
-  ─────────────────────────────────────────────────────────── */
+  /* 9. Data table
+     table-layout: fixed is CRITICAL — it prevents any column from
+     expanding beyond its declared width and spilling off the right edge.
+  */
   .print-table {
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
     border: 1pt solid #333333;
+    /* Prevent the table from ever exceeding the wrap container */
+    max-width: 100%;
   }
 
-  /* ── 10. Column widths ──────────────────────────────────── */
+  /* 10. Five-column widths — proportional, sum = 100 %
+     Chosen for: ID is short, Name is longest, Amount/Extra/Balance
+     need enough space to write 3-4 digit numbers by hand.
+  */
   .col-id {
-    width: 10%;
+    width: 9%;
     text-align: center;
   }
 
   .col-name {
-    width: 40%;
+    width: 36%;
     text-align: left;
   }
 
   .col-amount {
-    width: 25%;
+    width: 20%;
+    text-align: center;
+  }
+
+  .col-extra {
+    width: 16%;
     text-align: left;
   }
 
   .col-balance {
-    width: 25%;
+    width: 19%;
     text-align: left;
   }
 
-  /* ── 11. Table header row ────────────────────────────────── */
+  /* 11. Table header row */
   .print-table thead tr {
-    background-color: #f0f0f0;
+    background-color: #eeeeee;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
   }
 
   .print-table th {
-    padding: 1mm 2mm;
-    font-size: 6.5pt;
+    padding: 1mm 1.5mm;
+    font-size: 6pt;
     font-weight: 700;
-    letter-spacing: 0.05em;
+    letter-spacing: 0.06em;
     text-transform: uppercase;
     color: #111111;
     border-bottom: 1pt solid #333333;
-    border-right: 0.75pt solid #888888;
+    border-right: 0.75pt solid #666666;
     white-space: nowrap;
+    overflow: hidden;
   }
 
   .print-table th:last-child {
     border-right: none;
   }
 
-  /* ── 12. Customer data rows ─────────────────────────────────
-     Fixed height: 6.5mm — between college-ruled (7.1mm)
-     and narrow-ruled (6.4mm). Comfortable for handwriting
-     3–5 digit numbers. NOT stretched on sparse pages.
+  /* 12. Customer data rows
+     Fixed height: 6.0 mm — comfortable for handwriting 3-5 digit numbers.
+     NOT stretched on sparse pages — rows keep their natural height.
 
-     BORDER FIX: Using 0.75pt borders with #888888 gray.
-     Previous 0.5pt #cccccc was invisible in mobile PDF output.
-     0.75pt is the minimum reliably rendered by all PDF engines.
-     #888888 provides enough contrast to be visible on paper
-     while remaining a clean grid line (not heavy/distracting).
-  ─────────────────────────────────────────────────────────── */
+     Border: 0.75 pt with #888 gray — minimum reliably rendered by all
+     PDF engines including iPhone Save-to-PDF.
+  */
   .print-row {
     page-break-inside: avoid;
     break-inside: avoid;
   }
 
   .print-table td {
-    height: 6.5mm;
-    padding: 0 2mm;
-    font-size: 8pt;
+    height: 6mm;
+    padding: 0 1.5mm;
+    font-size: 7.5pt;
     vertical-align: middle;
     border-bottom: 0.75pt solid #888888;
     border-right: 0.75pt solid #888888;
     box-sizing: border-box;
-    white-space: nowrap;
-    overflow: visible;
+    overflow: hidden;
   }
 
-  /* ID column: never truncate — IDs are short numbers */
+  /* ID column: center-aligned, never truncate */
   .print-table td.col-id {
     text-align: center;
-    font-size: 7.5pt;
-    overflow: visible;
+    font-size: 7pt;
+    white-space: nowrap;
   }
 
-  /* Name column: may truncate with ellipsis for very long names */
+  /* Name column: truncate with ellipsis for very long names */
   .print-table td.col-name {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
   }
 
+  /* Amount column: pre-filled for DL, center-aligned */
+  .print-table td.col-amount {
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  /* Extra and Balance: blank, left-aligned for handwriting */
+  .print-table td.col-extra,
+  .print-table td.col-balance {
+    text-align: left;
+  }
+
+  /* Remove right border on last column */
   .print-table td:last-child {
     border-right: none;
   }
 
+  /* Remove bottom border on last data row */
   .print-table tbody tr:last-child td {
     border-bottom: none;
   }
