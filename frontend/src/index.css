@@ -24,23 +24,27 @@ body,
 /* ════════════════════════════════════════════════════════════
    PRINT: VEL Finance A4 Landscape Daily Collection Sheet
 
-   The .print-document is rendered via React Portal as a
-   direct child of <body>, completely outside the #root tree.
-   We simply hide #root and show .print-document.
+   Rendered via React Portal as a direct child of <body>.
+   #root is hidden entirely in print.
 
-   MARGIN STRATEGY:
-   Using 10mm uniform margins. Mobile browsers (Safari, Chrome)
-   enforce minimum ~10–12mm margins. With 7mm/8mm margins the
-   browser silently enlarges them but content is sized for the
-   smaller value → overflow → user must manually scale to 92%.
-   10mm aligns with mobile minimums so content fits at 100%.
+   MARGIN STRATEGY (12mm):
+   Mobile Safari enforces a minimum printable margin of ~12–13mm.
+   With smaller margins (7–10mm), the browser auto-scales to 95%.
+   12mm aligns with the mobile browser minimum so content fits
+   at exactly 100% scale on both desktop Chrome and mobile Safari.
+
+   BORDER STRATEGY:
+   Mobile PDF engines (especially iPhone Save-to-PDF) do not
+   reliably render sub-1pt borders. All cell borders use 0.75pt
+   minimum with a dark enough gray (#888) to remain visible
+   in both screen preview and physical/PDF output.
    ════════════════════════════════════════════════════════════ */
 @media print {
 
   /* ── 1. A4 Landscape page rule ──────────────────────────── */
   @page {
     size: A4 landscape;
-    margin: 10mm;
+    margin: 12mm;
   }
 
   /* ── 2. Hide entire application ─────────────────────────── */
@@ -76,8 +80,7 @@ body,
   /* ── 5. Each .print-page = one physical A4 sheet ─────────
      height: auto — sized by content (fixed-height rows).
      page-break-after: always pushes next page to new sheet.
-     The last page's blank space below rows is natural —
-     rows are NEVER stretched to fill it.
+     Rows are NEVER stretched to fill remaining space.
   ─────────────────────────────────────────────────────────── */
   .print-page {
     width: 100%;
@@ -147,12 +150,15 @@ body,
     flex-shrink: 0;
   }
 
-  /* ── 9. Data table ──────────────────────────────────────── */
+  /* ── 9. Data table ──────────────────────────────────────────
+     BORDER FIX: 1pt outer border ensures the table frame is
+     clearly visible in all PDF renderers including mobile.
+  ─────────────────────────────────────────────────────────── */
   .print-table {
     width: 100%;
     border-collapse: collapse;
     table-layout: fixed;
-    border: 0.5pt solid #555555;
+    border: 1pt solid #333333;
   }
 
   /* ── 10. Column widths ──────────────────────────────────── */
@@ -176,7 +182,7 @@ body,
     text-align: left;
   }
 
-  /* ── 11. Table header row ───────────────────────────────── */
+  /* ── 11. Table header row ────────────────────────────────── */
   .print-table thead tr {
     background-color: #f0f0f0;
   }
@@ -188,8 +194,8 @@ body,
     letter-spacing: 0.05em;
     text-transform: uppercase;
     color: #111111;
-    border-bottom: 0.75pt solid #333333;
-    border-right: 0.5pt solid #cccccc;
+    border-bottom: 1pt solid #333333;
+    border-right: 0.75pt solid #888888;
     white-space: nowrap;
   }
 
@@ -201,7 +207,12 @@ body,
      Fixed height: 6.5mm — between college-ruled (7.1mm)
      and narrow-ruled (6.4mm). Comfortable for handwriting
      3–5 digit numbers. NOT stretched on sparse pages.
-     Derived from A4 layout math in CollectionSheet.jsx.
+
+     BORDER FIX: Using 0.75pt borders with #888888 gray.
+     Previous 0.5pt #cccccc was invisible in mobile PDF output.
+     0.75pt is the minimum reliably rendered by all PDF engines.
+     #888888 provides enough contrast to be visible on paper
+     while remaining a clean grid line (not heavy/distracting).
   ─────────────────────────────────────────────────────────── */
   .print-row {
     page-break-inside: avoid;
@@ -213,8 +224,8 @@ body,
     padding: 0 2mm;
     font-size: 8pt;
     vertical-align: middle;
-    border-bottom: 0.5pt solid #cccccc;
-    border-right: 0.5pt solid #cccccc;
+    border-bottom: 0.75pt solid #888888;
+    border-right: 0.75pt solid #888888;
     box-sizing: border-box;
     white-space: nowrap;
     overflow: visible;

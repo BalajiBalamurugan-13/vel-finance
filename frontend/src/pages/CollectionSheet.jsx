@@ -24,34 +24,36 @@ function toDisplayDate(isoStr) {
 // ─── A4 Landscape print layout ──────────────────────────────────────────────
 //
 //  Physical paper:     297mm wide × 210mm tall (A4 landscape)
-//  @page margins:      10mm uniform (all sides)
+//  @page margins:      12mm uniform (all sides)
 //
-//  WHY 10mm MARGINS:
-//    Mobile browsers (Safari, Chrome) enforce a minimum printable margin
-//    of approximately 10–12mm. If we specify smaller margins (7mm, 8mm),
-//    the browser silently enforces its own larger margin but our content
-//    was sized for the smaller margin → content overflows the printable
-//    area → user must manually scale to 92% on mobile.
-//    Using 10mm aligns with the minimum enforced by all major browsers
-//    so the content fits at 100% scale on both desktop and mobile.
+//  WHY 12mm MARGINS:
+//    Mobile browsers (iPhone Safari, mobile Chrome) enforce their own
+//    minimum printable margins of approximately 12–13mm. If we specify
+//    smaller margins (7mm, 8mm, or even 10mm), the browser silently
+//    enforces its larger minimum but our content was sized for the
+//    smaller area → content overflows → browser auto-scales to 95%.
 //
-//  Usable height:      210 - 20 = 190mm
-//  Usable width:       297 - 20 = 277mm
+//    Using 12mm aligns with the enforced mobile minimum.
+//    The content fits at 100% scale on both desktop and mobile Safari.
+//    No manual scaling is needed on any device.
+//
+//  Usable height:      210 - 24 = 186mm
+//  Usable width:       297 - 24 = 273mm
 //
 //  Vertical space consumed by non-row elements:
 //    Print header (title + subtitle + date + border + gap)  = 12mm
 //    Table <thead> column labels                            =  5.5mm
 //    Table outer border (top + bottom)                      =  0.5mm
 //  ─────────────────────────────────────────────────────────────
-//    Available for data rows = 190 - 12 - 5.5 - 0.5 = 172mm
+//    Available for data rows = 186 - 12 - 5.5 - 0.5 = 168mm
 //
 //  Row design:
 //    CSS td height  = 6.5mm  (between college-ruled 7.1mm and narrow-ruled 6.4mm)
-//    Border pitch   = ~0.2mm per row (collapsed 0.5pt border)
-//    Effective pitch = 6.7mm per row
+//    Border pitch   = ~0.3mm per row (collapsed 0.75pt border)
+//    Effective pitch = 6.8mm per row
 //
-//  Rows per half-table = floor(172 / 6.7) = 25
-//  Safety buffer       = -1 row (portal rendering eliminates wrapper interference)
+//  Rows per half-table = floor(168 / 6.8) = 24
+//  Safety buffer       = 0 rows (portal + generous 12mm margins eliminate overflow risk)
 //  Final rows per half = 24
 //  Customers per page  = 24 × 2 = 48
 //
@@ -69,18 +71,18 @@ function toDisplayDate(isoStr) {
 //    In @media print, #root is hidden entirely.
 
 const A4_H_MM          = 210;
-const PAGE_MARGIN_MM   =  10;     // uniform 10mm — safe for desktop + mobile
-const USABLE_H_MM      = A4_H_MM - PAGE_MARGIN_MM * 2;        // 190mm
+const PAGE_MARGIN_MM   =  12;     // uniform 12mm — safe for desktop + mobile Safari
+const USABLE_H_MM      = A4_H_MM - PAGE_MARGIN_MM * 2;        // 186mm
 
 const HEADER_H_MM      =  12;    // print header block (compact)
 const THEAD_H_MM       = 5.5;    // table column header row
 const TABLE_BORDER_MM  = 0.5;    // outer borders
 
-const AVAILABLE_H_MM   = USABLE_H_MM - HEADER_H_MM - THEAD_H_MM - TABLE_BORDER_MM;  // 172mm
+const AVAILABLE_H_MM   = USABLE_H_MM - HEADER_H_MM - THEAD_H_MM - TABLE_BORDER_MM;  // 168mm
 
 const ROW_CSS_H_MM     = 6.5;    // CSS height on <td> — comfortable for handwriting
-const ROW_PITCH_MM     = 6.7;    // effective pitch including collapsed border
-const SAFETY_ROWS      =   1;    // portal eliminates wrapper interference, 1 row buffer is sufficient
+const ROW_PITCH_MM     = 6.8;    // effective pitch including collapsed 0.75pt border
+const SAFETY_ROWS      =   0;    // 12mm margins + portal = generous buffer, no extra safety needed
 
 const ROWS_PER_HALF    = Math.floor(AVAILABLE_H_MM / ROW_PITCH_MM) - SAFETY_ROWS;  // 24
 const CUSTOMERS_PER_PAGE = ROWS_PER_HALF * 2;                                       // 48
