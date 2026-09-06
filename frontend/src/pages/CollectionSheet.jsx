@@ -1,11 +1,13 @@
 import { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { getCustomers } from "../services/customerService";
+import { getPlaces } from "../services/placeService";
 import PageHeader from "../components/PageHeader";
-import { FiPrinter, FiRefreshCw, FiCalendar, FiUsers } from "react-icons/fi";
+import { FiPrinter, FiRefreshCw, FiCalendar, FiUsers, FiMapPin } from "react-icons/fi";
 import logoWatermark from "../assets/Vel finance logo white.png";
 
-// Date Utilities
+// ─── Date Utilities ────────────────────────────────────────────────────────
+
 function toInputDate(date) {
   const y = date.getFullYear();
   const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -23,10 +25,11 @@ function toDisplayDate(isoStr) {
   });
 }
 
-// DL Daily Collection Amount
+// ─── DL Daily Collection Amount ─────────────────────────────────────────────
 // Source of truth: AddCustomer.jsx calculateLoanDetails()
 //   dailyCollection = loan_amount / 100  (DL only)
-// Furniture customers get a blank cell - collector writes manually.
+// Furniture customers: blank cell — collector writes manually.
+
 function getDailyAmount(customer) {
   if (customer.type !== "DL") return "";
   const loanAmount = Number(customer.loan_amount) || 0;
@@ -34,92 +37,165 @@ function getDailyAmount(customer) {
   return String(Math.round(loanAmount / 100));
 }
 
-// A4 Landscape Print Layout
+// ─── A4 Landscape Layout Constants ──────────────────────────────────────────
 //
-// Physical paper:  297 mm wide x 210 mm tall  (A4 landscape)
+// Physical paper:  297 mm wide × 210 mm tall  (A4 landscape)
 // @page margin:    10 mm all sides
 //   Printable width:  297 - 20 = 277 mm
 //   Printable height: 210 - 20 = 190 mm
 //
-// 10 mm margins: aligns with mobile Safari minimum to prevent auto-scaling
-//
 // Vertical budget (190 mm):
-//   Header block                       =  9.5 mm
-//   Table thead row                    =  5.0 mm
-//   Table outer border (top + bottom)  =  0.5 mm
-//   Available for data rows            = 175.0 mm
+//   Header block (title + subtitle + date)    =  9.5 mm
+//   Table thead row                           =  5.5 mm
+//   Table outer borders (top + bottom)        =  0.5 mm
+//   Available for data rows                   = 174.5 mm
 //
-// Row: 6.0 mm height + ~0.26 mm border = 6.26 mm effective pitch
-// Rows per half = floor(175 / 6.26) = 27
-// Customers per page = 27 x 2 = 54
+// Customer row:      7.0 mm height + 0.26 mm border = 7.26 mm pitch
+// Place header row:  4.5 mm height + 0.26 mm border = 4.76 mm pitch
+//   (place-header counts as 1 "row unit" for budget purposes, same as customer row)
+//
+// Rows per half-table = floor(174.5 / 7.26) ≈ 24
+// This is intentionally conservative to ensure every row is comfortably readable.
 
-const AVAIL_ROW_MM       = 175;   // 190 - 9.5 - 5.0 - 0.5
-const ROW_PITCH_MM       = 6.26;
-const ROWS_PER_HALF      = Math.floor(AVAIL_ROW_MM / ROW_PITCH_MM); // 27
-const CUSTOMERS_PER_PAGE = ROWS_PER_HALF * 2;                        // 54
+const AVAIL_ROW_MM  = 174.5;
+const ROW_PITCH_MM  = 7.26;
+const ROWS_PER_HALF = Math.floor(AVAIL_ROW_MM / ROW_PITCH_MM); // 24
+
+// ─── Row-stream builder ──────────────────────────────────────────────────────
+//
+// Produces a flat array of "row items" that the pagination engine splits into
+// left and right half-tables. Each item is one of:
+//
+//   { type: "place-header", label: "TARKAS — 42 CUSTOMERS" }
+//   { type: "customer", customer: { ... } }
+//
+// This lets place headers flow naturally with customers without wasting paper.
+
+function buildRowStream(places, activeCustomers) {
+  // Group customers by place_id
+  const byPlace = {};
+  activeCustomers.forEach((c) => {
+    const key = c.place_id != null ? c.place_id : "__unassigned__";
+    if (!byPlace[key]) byPlace[key] = [];
+    byPlace[key].push(c);
+  });
+
+  const stream = [];
+
+  // 1. Assigned places in priority order
+  places.forEach((place) => {
+    const customers = byPlace[place.id] || [];
+    if (customers.length === 0) return; // skip empty places on the sheet
+    // Sort customers within place by customer_id ASC
+    const sorted = [...customers].sort((a, b) => a.customer_id - b.customer_id);
+    stream.push({
+      type: "place-header",
+      label: `${place.name.toUpperCase()} — ${sorted.length} CUSTOMER${sorted.length !== 1 ? "S" : ""}`,
+    });
+    sorted.forEach((c) => stream.push({ type: "customer", customer: c }));
+  });
+
+  // 2. Unassigned customers last
+  const unassigned = (byPlace["__unassigned__"] || []).sort(
+    (a, b) => a.customer_id - b.customer_id
+  );
+  if (unassigned.length > 0) {
+    stream.push({
+      type: "place-header",
+      label: `UNASSIGNED — ${unassigned.length} CUSTOMER${unassigned.length !== 1 ? "S" : ""}`,
+    });
+    unassigned.forEach((c) => stream.push({ type: "customer", customer: c }));
+  }
+
+  return stream;
+}
+
+// ─── Pagination engine ───────────────────────────────────────────────────────
+//
+// Splits the row stream into A4 pages, each with a left and right half-table.
+// Each half holds up to ROWS_PER_HALF row items (place-headers and customer rows).
+
+function paginateStream(stream) {
+  const pages = [];
+  let remaining = [...stream];
+
+  while (remaining.length > 0) {
+    const leftRows  = remaining.splice(0, ROWS_PER_HALF);
+    const rightRows = remaining.splice(0, ROWS_PER_HALF);
+    pages.push({ left: leftRows, right: rightRows });
+  }
+
+  return pages;
+}
+
+// ─── Render a single half-table row ─────────────────────────────────────────
+
+function PrintRow({ item }) {
+  if (item.type === "place-header") {
+    return (
+      <tr className="print-place-header-row">
+        <td colSpan={5} className="print-place-header-cell">
+          {item.label}
+        </td>
+      </tr>
+    );
+  }
+  const c = item.customer;
+  return (
+    <tr className="print-row">
+      <td className="col-id">{c.customer_id}</td>
+      <td className="col-name">{c.name}</td>
+      <td className="col-amount">{getDailyAmount(c)}</td>
+      <td className="col-extra"></td>
+      <td className="col-balance"></td>
+    </tr>
+  );
+}
+
+// ─── CollectionSheet component ───────────────────────────────────────────────
 
 function CollectionSheet() {
   const today = toInputDate(new Date());
   const [selectedDate, setSelectedDate] = useState(today);
   const [customers, setCustomers]       = useState([]);
+  const [places, setPlaces]             = useState([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState(null);
 
-  async function loadCustomers() {
+  async function loadData() {
     setLoading(true);
     setError(null);
     try {
-      const data = await getCustomers();
+      const [allCustomers, allPlaces] = await Promise.all([
+        getCustomers(),
+        getPlaces(),
+      ]);
 
       // Active filter: loan_given === true
-      const active = data
-        .filter((c) => c.loan_given)
-        .sort((a, b) => a.customer_id - b.customer_id);
+      const active = allCustomers.filter((c) => c.loan_given);
 
-      // Data integrity audit (console only)
-      const renderedIds = [];
-      for (let i = 0; i < active.length; i += CUSTOMERS_PER_PAGE) {
-        const chunk = active.slice(i, i + CUSTOMERS_PER_PAGE);
-        const mid   = Math.min(chunk.length, ROWS_PER_HALF);
-        chunk.slice(0, mid).forEach((c) => renderedIds.push(c.customer_id));
-        chunk.slice(mid).forEach((c)   => renderedIds.push(c.customer_id));
-      }
-      const activeIds = active.map((c) => c.customer_id);
-      const missing   = activeIds.filter((id) => !renderedIds.includes(id));
-      const dupes     = renderedIds.filter((id, i) => renderedIds.indexOf(id) !== i);
-
-      console.log("[CollectionSheet] Audit", {
-        totalFromAPI:     data.length,
-        totalActive:      active.length,
-        totalRendered:    renderedIds.length,
-        missingIds:       missing,
-        duplicateIds:     dupes,
-        rowsPerHalf:      ROWS_PER_HALF,
-        customersPerPage: CUSTOMERS_PER_PAGE,
-        totalPages:       Math.ceil(active.length / CUSTOMERS_PER_PAGE),
+      console.log("[CollectionSheet] Data loaded", {
+        totalFromAPI:  allCustomers.length,
+        totalActive:   active.length,
+        totalPlaces:   allPlaces.length,
+        rowsPerHalf:   ROWS_PER_HALF,
       });
 
       setCustomers(active);
+      setPlaces(allPlaces);
     } catch (err) {
       console.error("[CollectionSheet] Error:", err);
-      setError("Unable to load active customers.");
+      setError("Unable to load collection sheet data.");
     } finally {
       setLoading(false);
     }
   }
 
-  useEffect(() => { loadCustomers(); }, []);
+  useEffect(() => { loadData(); }, []);
 
-  // Pagination - LEFT-FIRST rule
-  const pages = [];
-  for (let i = 0; i < customers.length; i += CUSTOMERS_PER_PAGE) {
-    const chunk = customers.slice(i, i + CUSTOMERS_PER_PAGE);
-    const mid   = Math.min(chunk.length, ROWS_PER_HALF);
-    pages.push({
-      left:  chunk.slice(0, mid),
-      right: chunk.slice(mid),
-    });
-  }
+  // Build the row stream and paginate
+  const rowStream = buildRowStream(places, customers);
+  const pages     = paginateStream(rowStream);
 
   const displayDate = toDisplayDate(selectedDate);
 
@@ -136,14 +212,16 @@ function CollectionSheet() {
     };
 
     window.addEventListener("afterprint", restoreTitle);
-
     try {
       window.print();
     } finally {
-      // Restore after print dialog closes or asynchronously
       setTimeout(restoreTitle, 500);
     }
   }
+
+  // Screen-side summary
+  const assignedCount   = customers.filter((c) => c.place_id != null).length;
+  const unassignedCount = customers.length - assignedCount;
 
   return (
     <>
@@ -151,7 +229,7 @@ function CollectionSheet() {
       <div className="no-print max-w-2xl mx-auto px-5 py-6 pb-10">
         <PageHeader
           title="Collection Sheet"
-          subtitle="Generate a printable daily collection worksheet for active customers."
+          subtitle="Generate a printable daily collection worksheet grouped by collection route."
         />
 
         <div className="bg-[#182238] border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
@@ -170,26 +248,41 @@ function CollectionSheet() {
           </div>
 
           {!loading && !error && (
-            <div className="flex items-center gap-2 text-sm text-slate-400">
-              <FiUsers size={15} />
-              <span>
-                <span className="text-emerald-400 font-semibold">{customers.length}</span>{" "}
-                active customers &middot; {pages.length} page{pages.length !== 1 ? "s" : ""}
-              </span>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm text-slate-400">
+                <FiUsers size={15} />
+                <span>
+                  <span className="text-emerald-400 font-semibold">{customers.length}</span>{" "}
+                  active customers &middot;{" "}
+                  <span className="text-emerald-400 font-semibold">{pages.length}</span>{" "}
+                  page{pages.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+              {places.length > 0 && (
+                <div className="flex items-center gap-2 text-sm text-slate-400">
+                  <FiMapPin size={15} />
+                  <span>
+                    <span className="text-sky-400 font-semibold">{places.length}</span> place{places.length !== 1 ? "s" : ""}
+                    {unassignedCount > 0 && (
+                      <span className="text-amber-400"> &middot; {unassignedCount} unassigned</span>
+                    )}
+                  </span>
+                </div>
+              )}
             </div>
           )}
 
           {loading && (
             <div className="flex items-center gap-3 text-slate-400 text-sm py-2">
               <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-              Loading active customers...
+              Loading collection data…
             </div>
           )}
 
           {error && (
             <div className="bg-rose-500/10 border border-rose-500/30 rounded-xl p-4 flex items-start justify-between gap-4">
               <p className="text-rose-400 text-sm">{error}</p>
-              <button onClick={loadCustomers} className="flex items-center gap-1.5 text-xs text-rose-400 hover:text-rose-300 font-semibold shrink-0 transition">
+              <button onClick={loadData} className="flex items-center gap-1.5 text-xs text-rose-400 hover:text-rose-300 font-semibold shrink-0 transition">
                 <FiRefreshCw size={13} /> Retry
               </button>
             </div>
@@ -212,25 +305,33 @@ function CollectionSheet() {
         </div>
       </div>
 
-      {/* PRINT DOCUMENT - React Portal renders directly on <body>, outside #root */}
+      {/* PRINT DOCUMENT — React Portal renders directly on <body>, outside #root */}
       {createPortal(
         <div className="print-document">
           {pages.map((page, pageIdx) => (
             <div key={pageIdx} className="print-page">
+
               {/* Centered background watermark */}
               <div className="print-watermark" aria-hidden="true">
-                <img
-                  src={logoWatermark}
-                  alt=""
-                  className="print-watermark-img"
-                />
+                <img src={logoWatermark} alt="" className="print-watermark-img" />
               </div>
 
-              <div className="print-header">
-                <div className="print-title">VEL FINANCE</div>
-                <div className="print-subtitle">Daily Collection Sheet</div>
-                <div className="print-date">Date: {displayDate}</div>
-              </div>
+              {/* Page header — only on the first page */}
+              {pageIdx === 0 && (
+                <div className="print-header">
+                  <div className="print-title">VEL FINANCE</div>
+                  <div className="print-subtitle">Daily Collection Sheet</div>
+                  <div className="print-date">Date: {displayDate}</div>
+                </div>
+              )}
+
+              {/* Continuation header for pages after the first */}
+              {pageIdx > 0 && (
+                <div className="print-header print-header-cont">
+                  <div className="print-title">VEL FINANCE</div>
+                  <div className="print-date">Date: {displayDate} &nbsp;(continued)</div>
+                </div>
+              )}
 
               <div className="print-tables-row">
                 {/* LEFT TABLE */}
@@ -246,14 +347,8 @@ function CollectionSheet() {
                       </tr>
                     </thead>
                     <tbody>
-                      {page.left.map((c) => (
-                        <tr key={c.customer_id} className="print-row">
-                          <td className="col-id">{c.customer_id}</td>
-                          <td className="col-name">{c.name}</td>
-                          <td className="col-amount">{getDailyAmount(c)}</td>
-                          <td className="col-extra"></td>
-                          <td className="col-balance"></td>
-                        </tr>
+                      {page.left.map((item, i) => (
+                        <PrintRow key={i} item={item} />
                       ))}
                     </tbody>
                   </table>
@@ -275,20 +370,15 @@ function CollectionSheet() {
                         </tr>
                       </thead>
                       <tbody>
-                        {page.right.map((c) => (
-                          <tr key={c.customer_id} className="print-row">
-                            <td className="col-id">{c.customer_id}</td>
-                            <td className="col-name">{c.name}</td>
-                            <td className="col-amount">{getDailyAmount(c)}</td>
-                            <td className="col-extra"></td>
-                            <td className="col-balance"></td>
-                          </tr>
+                        {page.right.map((item, i) => (
+                          <PrintRow key={i} item={item} />
                         ))}
                       </tbody>
                     </table>
                   )}
                 </div>
               </div>
+
             </div>
           ))}
         </div>,

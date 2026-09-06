@@ -9,6 +9,7 @@ import {
     updateCustomer,
     closeLoan
 } from "../../services/customerService";
+import { getPlaces } from "../../services/placeService";
 
 
 function CustomerProfileDrawer({
@@ -25,13 +26,27 @@ function CustomerProfileDrawer({
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [showCloseLoanDialog, setShowCloseLoanDialog] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
+    const [places, setPlaces] = useState([]);
 
     const [editForm, setEditForm] = useState({
         name: "",
         phone: "",
         address: "",
-        due_date: ""
+        due_date: "",
+        place_id: ""
     });
+
+    useEffect(() => {
+        getPlaces()
+            .then((data) => {
+                setPlaces(Array.isArray(data) ? data : []);
+            })
+            .catch((err) => {
+                console.error("[CustomerProfileDrawer] getPlaces failed:", err);
+                setPlaces([]);
+            });
+    }, []);
+
     useEffect(() => {
 
         if (customer) {
@@ -40,7 +55,8 @@ function CustomerProfileDrawer({
                 name: customer.name || "",
                 phone: customer.phone || "",
                 address: customer.address || "",
-                due_date: customer.due_date || ""
+                due_date: customer.due_date || "",
+                place_id: customer.place_id ?? ""
             });
 
         }
@@ -178,9 +194,19 @@ function CustomerProfileDrawer({
 
         try {
 
+            // Build explicit payload so place_id (even null) is sent to backend
+            const updatePayload = {
+                name:     editForm.name,
+                phone:    editForm.phone,
+                address:  editForm.address,
+                due_date: editForm.due_date || undefined,
+                place_id: editForm.place_id !== "" && editForm.place_id !== null && editForm.place_id !== undefined
+                    ? Number(editForm.place_id)
+                    : null,
+            };
             await updateCustomer(
                 customer.customer_id,
-                editForm
+                updatePayload
             );
 
             toast.success("Customer updated successfully!");
@@ -188,6 +214,9 @@ function CustomerProfileDrawer({
             setIsEditing(false);
 
             await refreshCustomer(customer.customer_id, false);
+            if (refreshCustomers) {
+                await refreshCustomers();
+            }
 
         } catch (error) {
 
@@ -310,6 +339,18 @@ function CustomerProfileDrawer({
                 />
             </div>
 
+            <div>
+                <label className="text-sm text-slate-400">Place</label>
+                <select
+                    value={editForm.place_id ?? ""}
+                    onChange={(e) => setEditForm({ ...editForm, place_id: e.target.value ? Number(e.target.value) : "" })}
+                    className="w-full mt-1 bg-[#0f172a] border border-slate-700/80 rounded-xl px-3.5 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                >
+                    <option value="">Not Assigned</option>
+                    {places.map((p) => (<option key={p.id} value={p.id}>{p.name}</option>))}
+                </select>
+            </div>
+
         </div>
 
     ) : (
@@ -344,6 +385,11 @@ function CustomerProfileDrawer({
             <div className="flex justify-between items-center">
                 <span className="text-slate-400">Due Date</span>
                 <span>{customer.due_date || "-"}</span>
+            </div>
+
+            <div className="flex justify-between items-center">
+                <span className="text-slate-400">Place</span>
+                <span className="font-medium text-slate-200">{customer.place_name || "Not Assigned"}</span>
             </div>
 
         </div>

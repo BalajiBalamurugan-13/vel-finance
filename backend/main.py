@@ -1,5 +1,5 @@
 from fastapi import FastAPI
-from backend.routes import customers, transactions, expenses
+from backend.routes import customers, transactions, expenses, places
 from fastapi.middleware.cors import CORSMiddleware
 
 backend = FastAPI()
@@ -17,6 +17,7 @@ backend.add_middleware(
 backend.include_router(customers.router)
 backend.include_router(transactions.router)
 backend.include_router(expenses.router)
+backend.include_router(places.router)
 
 @backend.get("/")
 def root():

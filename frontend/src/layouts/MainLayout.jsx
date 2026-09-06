@@ -20,7 +20,7 @@ function MainLayout({ children }) {
         setSidebarOpen={setSidebarOpen}
       />
 
-      <main className="flex-1 bg-slate-950 min-h-screen">
+      <main className="flex-1 bg-slate-950 min-h-screen min-w-0">
 
         {/* Mobile Header */}
         <div className="lg:hidden flex items-center justify-between p-4 border-b border-slate-800">

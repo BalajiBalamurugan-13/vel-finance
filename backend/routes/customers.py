@@ -166,12 +166,21 @@ def get_customers():
             loan_given,
             ready_to_close,
             loan_amount,
-            type
+            type,
+            place_id,
+            places(id, name, priority)
         """)
         .execute()
     )
 
-    return res.data
+    customers = []
+    for c in (res.data or []):
+        place_info = c.pop("places", None) or {}
+        c["place_name"] = place_info.get("name")
+        c["place_priority"] = place_info.get("priority")
+        customers.append(c)
+
+    return customers
 
 @router.delete("/delete/{customer_id}")
 def delete_customer(customer_id: int):
@@ -299,7 +308,7 @@ def update_customer(customer_id: int, data: CustomerUpdate):
 
     try:
 
-        update_data = data.dict(exclude_none=True)
+        update_data = data.dict(exclude_unset=True)
 
         if not update_data:
             return {"error": "No fields to update"}

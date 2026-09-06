@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { addCustomer } from "../services/customerService";
+import { getPlaces } from "../services/placeService";
 import { toast } from "react-toastify";
 import { Loader2 } from "lucide-react";
 
@@ -43,7 +44,16 @@ function AddCustomer() {
       
     });
   const [loading, setLoading] = useState(false);
+  const [places, setPlaces]     = useState([]);
+  const [placesLoading, setPlacesLoading] = useState(true);
   const [errors, setErrors] = useState({});
+  useEffect(() => {
+    getPlaces()
+      .then((data) => setPlaces(data))
+      .catch(() => setPlaces([]))
+      .finally(() => setPlacesLoading(false));
+  }, []);
+
 
     function calculateLoanDetails(
       loanAmount,
@@ -192,6 +202,11 @@ function AddCustomer() {
       }
     }
 
+
+    // Place
+    if (!formData.place_id) {
+      newErrors.place_id = "Place is required";
+    }
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       toast.error("Please fix all form validation errors before saving");

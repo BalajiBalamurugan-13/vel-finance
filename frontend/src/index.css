@@ -158,7 +158,7 @@ body,
   }
 
   .print-title {
-    font-size: 11pt;
+    font-size: 13pt;
     font-weight: 800;
     letter-spacing: 0.12em;
     text-transform: uppercase;
@@ -169,7 +169,7 @@ body,
   }
 
   .print-subtitle {
-    font-size: 6.5pt;
+    font-size: 8pt;
     font-weight: 600;
     letter-spacing: 0.07em;
     text-transform: uppercase;
@@ -178,8 +178,8 @@ body,
   }
 
   .print-date {
-    font-size: 6pt;
-    color: #555555;
+    font-size: 7.5pt;
+    color: #444444;
     margin-top: 0.4mm;
   }
 
@@ -262,10 +262,10 @@ body,
   }
 
   .print-table th {
-    padding: 1mm 1.5mm;
-    font-size: 6pt;
+    padding: 1.2mm 1.5mm;
+    font-size: 8pt;
     font-weight: 700;
-    letter-spacing: 0.06em;
+    letter-spacing: 0.05em;
     text-transform: uppercase;
     color: #111111;
     border-bottom: 1pt solid #333333;
@@ -278,8 +278,29 @@ body,
     border-right: none;
   }
 
+
+  /* Place/section header row inside the table */
+  .print-place-header-row {
+    page-break-inside: avoid;
+    break-inside: avoid;
+  }
+
+  .print-place-header-cell {
+    height: 5mm;
+    padding: 0 2mm;
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #1a5276;
+    background-color: #e8f4f8;
+    border-bottom: 0.75pt solid #aaaaaa;
+    vertical-align: middle;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
   /* 12. Customer data rows
-     Fixed height: 6.0 mm — comfortable for handwriting 3-5 digit numbers.
+     Fixed height: 7.0 mm — comfortable for handwriting 3-5 digit numbers.
      NOT stretched on sparse pages — rows keep their natural height.
 
      Border: 0.75 pt with #888 gray — minimum reliably rendered by all
@@ -291,9 +312,10 @@ body,
   }
 
   .print-table td {
-    height: 6mm;
+    height: 7mm;
     padding: 0 1.5mm;
-    font-size: 7.5pt;
+    font-size: 9.5pt;
+    color: #111111;
     vertical-align: middle;
     border-bottom: 0.75pt solid #888888;
     border-right: 0.75pt solid #888888;
@@ -304,12 +326,15 @@ body,
   /* ID column: center-aligned, never truncate */
   .print-table td.col-id {
     text-align: center;
-    font-size: 7pt;
+    font-size: 9.5pt;
+    font-weight: 700;
     white-space: nowrap;
   }
 
   /* Name column: truncate with ellipsis for very long names */
   .print-table td.col-name {
+    font-size: 9.5pt;
+    font-weight: 600;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -318,6 +343,8 @@ body,
   /* Amount column: pre-filled for DL, center-aligned */
   .print-table td.col-amount {
     text-align: center;
+    font-size: 9.5pt;
+    font-weight: 700;
     white-space: nowrap;
   }
 
@@ -325,6 +352,7 @@ body,
   .print-table td.col-extra,
   .print-table td.col-balance {
     text-align: left;
+    font-size: 9.5pt;
   }
 
   /* Remove right border on last column */

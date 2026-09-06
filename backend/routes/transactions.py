@@ -69,7 +69,7 @@ def add_transaction(data: TransactionCreate):
 def get_customer_balance(customer_id: int):
     # 1. Get customer
     customer_res = supabase.table("customers") \
-        .select("*") \
+        .select("*, places(id, name, priority)") \
         .eq("customer_id", customer_id) \
         .execute()
 
@@ -77,6 +77,7 @@ def get_customer_balance(customer_id: int):
         return {"error": "Customer not found"}
 
     customer = customer_res.data[0]
+    place_info = customer.get("places") or {}
 
     # 2. Get transactions
     txn_res = supabase.table("transactions") \
@@ -128,6 +129,9 @@ def get_customer_balance(customer_id: int):
     "net_given": customer.get("net_given"),
     "loan_date": customer.get("loan_date"),
     "due_date": customer.get("due_date"),
+    "place_id": customer.get("place_id"),
+    "place_name": place_info.get("name"),
+    "place_priority": place_info.get("priority"),
     "total_paid": total_paid,
     "balance": balance,
     "status": status,

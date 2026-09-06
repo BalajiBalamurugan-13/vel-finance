@@ -1,4 +1,4 @@
-﻿import { Routes, Route } from "react-router-dom";
+import { Routes, Route } from "react-router-dom";
 
 import MainLayout from "./layouts/MainLayout";
 
@@ -9,6 +9,7 @@ import AddExpense from "./pages/AddExpense";
 import History from "./pages/History";
 import BusinessSummary from "./pages/BusinessSummary";
 import CollectionSheet from "./pages/CollectionSheet";
+import PlaceManagement from "./pages/PlaceManagement";
 
 function App() {
   return (
@@ -21,6 +22,7 @@ function App() {
         <Route path="/history" element={<History />} />
         <Route path="/business-summary" element={<BusinessSummary />} />
         <Route path="/collection-sheet" element={<CollectionSheet />} />
+        <Route path="/places" element={<PlaceManagement />} />
       </Routes>
     </MainLayout>
   );

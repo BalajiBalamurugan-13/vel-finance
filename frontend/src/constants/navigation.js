@@ -1,4 +1,4 @@
-﻿import {
+import {
   FiHome,
   FiUsers,
   FiUserPlus,
@@ -6,6 +6,7 @@
   FiClock,
   FiBarChart2,
   FiClipboard,
+  FiMapPin,
 } from "react-icons/fi";
 
 const navigation = [
@@ -43,6 +44,11 @@ const navigation = [
     name: "Collection Sheet",
     path: "/collection-sheet",
     icon: FiClipboard,
+  },
+  {
+    name: "Manage Places",
+    path: "/places",
+    icon: FiMapPin,
   },
 ];
 
