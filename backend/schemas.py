@@ -11,8 +11,8 @@ class CustomerCreate(BaseModel):
     advance_amount: int = 0
     interest: int
     loan_amount: int
-    loan_date: str
-    due_date: str
+    loan_date: Optional[str] = None
+    due_date: Optional[str] = None
     type: str
     loan_given: bool = True
     place_id: Optional[int] = None
@@ -24,6 +24,11 @@ class CustomerUpdate(BaseModel):
     address: Optional[str] = None
     due_date: Optional[str] = None
     place_id: Optional[int] = None
+
+
+class CustomerActivate(BaseModel):
+    loan_date: str
+    due_date: Optional[str] = None
 
 
 class TransactionCreate(BaseModel):
@@ -55,3 +60,9 @@ class PlaceReorderItem(BaseModel):
 
 class PlaceReorder(BaseModel):
     items: list[PlaceReorderItem]
+
+
+class InvestmentCreate(BaseModel):
+    amount: int
+    note: str = ""
+    date: str

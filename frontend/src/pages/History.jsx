@@ -183,6 +183,11 @@ function History() {
                   </div>
 
                   <div className="flex justify-between text-green-400">
+                      <span className="font-medium">+ Investment</span>
+                      <span>₹{cashFlow.investments}</span>
+                  </div>
+
+                  <div className="flex justify-between text-green-400">
                       <span className="font-medium">+ Collections</span>
                       <span>₹{cashFlow.collections}</span>
                   </div>

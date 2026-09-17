@@ -28,3 +28,18 @@ export async function getTodayCashFlow() {
     const response = await api.get("/transactions/cash-flow");
     return response.data;
 }
+
+export async function getMigrationStatus() {
+    const response = await api.get("/transactions/migration-status");
+    return response.data;
+}
+
+export async function completeMigration() {
+    const response = await api.post("/transactions/complete-migration");
+    return response.data;
+}
+
+export async function addInvestment(data) {
+    const response = await api.post("/transactions/add-investment", data);
+    return response.data;
+}

@@ -162,7 +162,7 @@ function AddCustomer() {
     }
 
     // Loan Date / Delivery Date
-    if (!formData.loan_date) {
+    if (formData.loan_given && !formData.loan_date) {
       newErrors.loan_date =
         formData.type === "DL" ? "Loan Date is required" : "Delivery Date is required";
     }
@@ -175,7 +175,7 @@ function AddCustomer() {
         newErrors.interest = "Profit cannot be greater than Selling Price";
       }
 
-      if (!formData.due_date) {
+      if (formData.loan_given && !formData.due_date) {
         newErrors.due_date = "Expected Completion date is required";
       }
     }
@@ -210,10 +210,10 @@ function AddCustomer() {
           formData.type === "Furniture"
             ? Number(formData.selling_price) - Number(formData.advance_amount)
             : Number(formData.loan_amount),
-        loan_date: formData.loan_date,
-        due_date: formData.due_date,
+        loan_date: formData.loan_given ? formData.loan_date : null,
+        due_date: formData.loan_given ? formData.due_date : null,
         type: formData.type,
-        loan_given: formData.type === "DL" ? formData.loan_given : true,
+        loan_given: formData.loan_given,
       });
 
       toast.success("Customer added successfully");
@@ -254,6 +254,81 @@ shadow-xl
           <option value="Furniture">Furniture</option>
           <option value="DL">DL</option>
         </select>
+
+        {/* Enterprise Loan Active Toggle */}
+        <div className="
+          bg-[#0f172a]
+          border
+          border-slate-700/80
+          rounded-xl
+          p-4
+          flex
+          items-center
+          justify-between
+          transition-all
+          duration-200
+        ">
+          <div className="space-y-0.5">
+            <div className="text-base font-semibold text-white flex items-center gap-2">
+              Loan Active
+              <span className={`text-xs px-2.5 py-0.5 rounded-full font-medium transition-colors duration-200 ${
+                formData.loan_given
+                  ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                  : "bg-slate-700/60 text-slate-400 border border-slate-600/40"
+              }`}>
+                {formData.loan_given ? "ON" : "OFF"}
+              </span>
+            </div>
+            <p className="text-xs text-slate-400">
+              {formData.loan_given ? "Loan is active" : "Loan not given yet"}
+            </p>
+          </div>
+
+          <button
+            type="button"
+            role="switch"
+            aria-checked={formData.loan_given}
+            onClick={() => setFormData((prev) => ({ ...prev, loan_given: !prev.loan_given }))}
+            className={`
+              relative
+              inline-flex
+              h-7
+              w-12
+              shrink-0
+              cursor-pointer
+              rounded-full
+              border-2
+              border-transparent
+              transition-colors
+              duration-200
+              ease-in-out
+              focus:outline-none
+              focus:ring-2
+              focus:ring-emerald-500
+              focus:ring-offset-2
+              focus:ring-offset-[#0f172a]
+              ${formData.loan_given ? "bg-emerald-500" : "bg-slate-700"}
+            `}
+          >
+            <span
+              className={`
+                pointer-events-none
+                inline-block
+                h-6
+                w-6
+                transform
+                rounded-full
+                bg-white
+                shadow-lg
+                ring-0
+                transition
+                duration-200
+                ease-in-out
+                ${formData.loan_given ? "translate-x-5" : "translate-x-0"}
+              `}
+            />
+          </button>
+        </div>
 
         <div>
           <label className={labelStyles}>
@@ -474,28 +549,30 @@ shadow-xl
           </div>
         )}
 
-        <div>
-          <label className={labelStyles}>
-            {formData.type === "DL" ? (
-              <>Loan Date <span className="text-rose-400">*</span></>
-            ) : (
-              <>கடன் கொடுக்கப்பட்ட தேதி <span className="text-rose-400">*</span></>
-            )}
-          </label>
+        {formData.loan_given && (
+          <div>
+            <label className={labelStyles}>
+              {formData.type === "DL" ? (
+                <>Loan Date <span className="text-rose-400">*</span></>
+              ) : (
+                <>கடன் கொடுக்கப்பட்ட தேதி <span className="text-rose-400">*</span></>
+              )}
+            </label>
 
-          <input
-            type="date"
-            name="loan_date"
-            value={formData.loan_date}
-            onChange={handleChange}
-            className={`${inputStyles} color-scheme-dark`}
-          />
-          {errors.loan_date && (
-            <p className="mt-2 text-xs font-medium text-rose-400">
-              {errors.loan_date}
-            </p>
-          )}
-        </div>
+            <input
+              type="date"
+              name="loan_date"
+              value={formData.loan_date}
+              onChange={handleChange}
+              className={`${inputStyles} color-scheme-dark`}
+            />
+            {errors.loan_date && (
+              <p className="mt-2 text-xs font-medium text-rose-400">
+                {errors.loan_date}
+              </p>
+            )}
+          </div>
+        )}
 
         {formData.type === "DL" ? (
           <div className="
@@ -525,50 +602,34 @@ shadow-xl
               <span className="text-lg font-bold text-blue-400">₹{loan.dailyCollection}/day</span>
             </div>
 
-            <div className="flex items-center justify-between border-t border-slate-700 pt-5 mt-2">
-              <span className="text-slate-400">Due Date</span>
-              <span className="text-lg font-semibold text-white">{loan.dueDate || "-"}</span>
-            </div>
-          </div>
-        ) : (
-          <div>
-            <label className={labelStyles}>
-              கடன் முடிவு தேதி <span className="text-rose-400">*</span>
-            </label>
-
-            <input
-              type="date"
-              name="due_date"
-              value={formData.due_date}
-              onChange={handleChange}
-              className={`${inputStyles} color-scheme-dark`}
-            />
-            {errors.due_date && (
-              <p className="mt-2 text-xs font-medium text-rose-400">
-                {errors.due_date}
-              </p>
+            {formData.loan_given && (
+              <div className="flex items-center justify-between border-t border-slate-700 pt-5 mt-2">
+                <span className="text-slate-400">Due Date</span>
+                <span className="text-lg font-semibold text-white">{loan.dueDate || "-"}</span>
+              </div>
             )}
           </div>
-        )}
+        ) : (
+          formData.loan_given && (
+            <div>
+              <label className={labelStyles}>
+                கடன் முடிவு தேதி <span className="text-rose-400">*</span>
+              </label>
 
-        {formData.type === "DL" && (
-          <label className="flex items-center gap-3 cursor-pointer">
-            <input
-              type="checkbox"
-              className="
-                h-5
-                w-5
-                rounded
-                border-slate-600
-                text-emerald-500
-                focus:ring-emerald-500
-              "
-              name="loan_given"
-              checked={formData.loan_given}
-              onChange={handleChange}
-            />
-            <span className="text-white font-medium">Loan Given</span>
-          </label>
+              <input
+                type="date"
+                name="due_date"
+                value={formData.due_date}
+                onChange={handleChange}
+                className={`${inputStyles} color-scheme-dark`}
+              />
+              {errors.due_date && (
+                <p className="mt-2 text-xs font-medium text-rose-400">
+                  {errors.due_date}
+                </p>
+              )}
+            </div>
+          )
         )}
 
         <button

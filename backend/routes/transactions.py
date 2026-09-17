@@ -1,6 +1,6 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 from backend.db import supabase
-from backend.schemas import TransactionCreate
+from backend.schemas import TransactionCreate, InvestmentCreate
 from datetime import date
 from datetime import datetime, timedelta
 from time import perf_counter
@@ -511,10 +511,20 @@ def get_cash_balance():
             if x.get("source") == "expense"
         )
 
+        # Migration offset: internal accounting adjustment (not user-facing)
+        total_migration_offset = 0
+        for x in data:
+            if x.get("source") == "migration_offset":
+                if x.get("type") == "credit":
+                    total_migration_offset += int(x.get("amount", 0))
+                else:
+                    total_migration_offset -= int(x.get("amount", 0))
+
         cash_balance = (
             total_investment
             + total_collection
             + total_advance
+            + total_migration_offset
             - total_loan_given
             - total_purchase
             - total_expense
@@ -737,11 +747,21 @@ def calculate_cash_flow(selected_date: str):
         if x["source"] == "expense"
     )
 
+    # Migration offset: silently include in closing_cash (not a user-facing line item)
+    migration_offset = 0
+    for x in today_entries:
+        if x["source"] == "migration_offset":
+            if x["type"] == "credit":
+                migration_offset += x["amount"]
+            else:
+                migration_offset -= x["amount"]
+
     closing_cash = (
         opening_cash
         + investments
         + collections
         + advances
+        + migration_offset
         - purchases
         - loans
         - expenses
@@ -771,4 +791,207 @@ def cash_flow(selected_date: str):
 @router.get("/cash-flow")
 def get_today_cash_flow():
 
-    return calculate_cash_flow(date.today().isoformat())  
+    return calculate_cash_flow(date.today().isoformat())
+
+
+# ============================================================
+# MIGRATION & INVESTMENT ENDPOINTS
+# ============================================================
+
+@router.get("/migration-status")
+def get_migration_status():
+    """Check whether the one-time initial migration has been completed."""
+    try:
+        res = (
+            supabase.table("app_settings")
+            .select("key,value")
+            .in_("key", ["migration_completed", "migration_offset_amount"])
+            .execute()
+        )
+        settings = {row["key"]: row["value"] for row in (res.data or [])}
+
+        if "migration_completed" in settings:
+            return {
+                "completed": True,
+                "completed_at": settings["migration_completed"],
+                "offset_amount": int(settings.get("migration_offset_amount", 0)),
+            }
+
+        return {
+            "completed": False,
+            "completed_at": None,
+            "offset_amount": None,
+        }
+    except Exception:
+        # Table may not exist yet
+        return {
+            "completed": False,
+            "completed_at": None,
+            "offset_amount": None,
+        }
+
+
+@router.post("/complete-migration")
+def complete_migration():
+    """
+    One-time migration finalization.
+
+    1. Rejects if already completed (app_settings check).
+    2. Calculates current net cashbook balance (the distortion amount).
+    3. Claims the migration lock by inserting app_settings first.
+    4. Inserts a single migration_offset cashbook entry to zero the balance.
+    5. Records the offset amount for audit.
+
+    Atomic safety: app_settings PRIMARY KEY prevents duplicate execution.
+    If offset insert fails after lock is claimed, the lock is rolled back.
+    """
+    # --- Step 1: Check if already completed ---
+    try:
+        existing = (
+            supabase.table("app_settings")
+            .select("value")
+            .eq("key", "migration_completed")
+            .execute()
+        )
+        if existing.data:
+            raise HTTPException(
+                status_code=400,
+                detail="Initial migration has already been completed.",
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        # Table may not exist or be empty — that means not completed
+        pass
+
+    # --- Step 2: Calculate current distorted balance ---
+    try:
+        cash = get_cash_balance()
+        if "error" in cash:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to calculate balance: {cash['error']}",
+            )
+        current_balance = cash["cash_balance"]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to calculate balance: {e}",
+        )
+
+    now = datetime.utcnow().isoformat() + "Z"
+    today_str = date.today().isoformat()
+    offset_amount = abs(current_balance)
+    offset_type = "credit" if current_balance <= 0 else "debit"
+
+    # --- Step 3: Claim migration lock (app_settings insert) ---
+    try:
+        supabase.table("app_settings").insert(
+            {"key": "migration_completed", "value": now}
+        ).execute()
+    except Exception as e:
+        # PRIMARY KEY violation = another request completed first
+        raise HTTPException(
+            status_code=400,
+            detail="Initial migration has already been completed.",
+        )
+
+    # --- Step 4: Insert migration offset into cashbook ---
+    try:
+        offset_entry = (
+            supabase.table("cashbook")
+            .insert(
+                {
+                    "amount": offset_amount,
+                    "type": offset_type,
+                    "source": "migration_offset",
+                    "reference_id": f"migration_{now}",
+                    "date": today_str,
+                }
+            )
+            .execute()
+        )
+
+        if not offset_entry.data:
+            raise Exception("Empty response from cashbook insert")
+
+    except Exception as e:
+        # Rollback: remove the lock we just claimed
+        try:
+            supabase.table("app_settings").delete().eq(
+                "key", "migration_completed"
+            ).execute()
+        except Exception:
+            pass
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to create migration offset entry: {e}",
+        )
+
+    # --- Step 5: Record audit data ---
+    try:
+        supabase.table("app_settings").insert(
+            {"key": "migration_offset_amount", "value": str(offset_amount)}
+        ).execute()
+    except Exception:
+        pass  # Non-critical — the offset is already in cashbook
+
+    return {
+        "message": "Initial migration completed successfully",
+        "offset_amount": offset_amount,
+        "offset_type": offset_type,
+        "completed_at": now,
+    }
+
+
+@router.post("/add-investment")
+def add_investment(data: InvestmentCreate):
+    """Add a permanent investment (cash inflow) to the business."""
+    if data.amount <= 0:
+        raise HTTPException(
+            status_code=400,
+            detail="Investment amount must be greater than zero.",
+        )
+
+    if not data.date:
+        raise HTTPException(
+            status_code=400,
+            detail="Investment date is required.",
+        )
+
+    try:
+        entry = (
+            supabase.table("cashbook")
+            .insert(
+                {
+                    "amount": data.amount,
+                    "type": "credit",
+                    "source": "investment",
+                    "reference_id": data.note or None,
+                    "date": data.date,
+                }
+            )
+            .execute()
+        )
+
+        if not entry.data:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to record investment.",
+            )
+
+        return {
+            "message": "Investment recorded successfully",
+            "amount": data.amount,
+            "date": data.date,
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to record investment: {e}",
+        )

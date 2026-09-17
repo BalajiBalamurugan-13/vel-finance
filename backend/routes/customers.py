@@ -1,7 +1,7 @@
 from fastapi import APIRouter
 from fastapi import HTTPException
 from backend.db import supabase
-from backend.schemas import CustomerCreate, CustomerUpdate
+from backend.schemas import CustomerCreate, CustomerUpdate, CustomerActivate
 from datetime import datetime, timedelta
 router = APIRouter(prefix="/customers", tags=["Customers"])
 
@@ -63,32 +63,31 @@ def add_customer(data: CustomerCreate):
         customer["selling_price"] = selling_price
         customer["advance_amount"] = advance_amount
 
-    if not customer.get("loan_date"):
-        return {
-            "error":
-            "Loan Date is required"
-            if customer["type"] == "DL"
-            else "Delivery Date is required"
-        }
-    
-    if customer["type"] == "Furniture":
+    if customer.get("loan_given", True):
+        if not customer.get("loan_date"):
+            return {
+                "error":
+                "Loan Date is required"
+                if customer["type"] == "DL"
+                else "Delivery Date is required"
+            }
+        
+        if customer["type"] == "Furniture":
+            if not customer.get("due_date"):
+                return {"error": "Expected Completion is required"}
 
-        if not customer.get("due_date"):
-            return {"error": "Expected Completion is required"}
-    # Auto Due Date for DL
-    # Auto Due Date for DL
-    if customer.get("type") == "DL":
-
-        loan_date = customer.get("loan_date")
-
-        if loan_date:
-            due_date = (
-                datetime.strptime(loan_date, "%Y-%m-%d")
-                + timedelta(days=100)
-            )
-
-            customer["due_date"] = due_date.strftime("%Y-%m-%d")
-
+        # Auto Due Date for DL
+        if customer.get("type") == "DL":
+            loan_date = customer.get("loan_date")
+            if loan_date:
+                due_date = (
+                    datetime.strptime(loan_date, "%Y-%m-%d")
+                    + timedelta(days=100)
+                )
+                customer["due_date"] = due_date.strftime("%Y-%m-%d")
+    else:
+        customer["loan_date"] = None
+        customer["due_date"] = None
 
     # ✅ Check duplicate Customer ID (for BOTH DL & Furniture)
     print("Checking Customer ID:", customer["customer_id"])
@@ -110,7 +109,6 @@ def add_customer(data: CustomerCreate):
             detail="Customer ID already exists"
         )
 
-
     # ✅ Insert customer (for BOTH DL & Furniture)
     res = (
         supabase.table("customers")
@@ -121,33 +119,32 @@ def add_customer(data: CustomerCreate):
     try:
         inserted_customer = res.data[0] if res.data else {}
 
-        if customer["type"] == "Furniture":
+        if customer.get("loan_given", True):
+            if customer["type"] == "Furniture":
+                # Advance received
+                if advance_amount > 0:
+                    supabase.table("cashbook").insert({
+                        "amount": advance_amount,
+                        "type": "credit",
+                        "source": "advance",
+                        "reference_id": str(inserted_customer["customer_id"])
+                    }).execute()
 
-            # Advance received
-            if advance_amount > 0:
+                # Purchase payment
                 supabase.table("cashbook").insert({
-                    "amount": advance_amount,
-                    "type": "credit",
-                    "source": "advance",
+                    "amount": actual_given,
+                    "type": "debit",
+                    "source": "purchase",
                     "reference_id": str(inserted_customer["customer_id"])
                 }).execute()
 
-            # Purchase payment
-            supabase.table("cashbook").insert({
-                "amount": actual_given,
-                "type": "debit",
-                "source": "purchase",
-                "reference_id": str(inserted_customer["customer_id"])
-            }).execute()
-
-        elif customer.get("loan_given", True):
-
-            supabase.table("cashbook").insert({
-                "amount": actual_given,
-                "type": "debit",
-                "source": "loan",
-                "reference_id": str(inserted_customer["customer_id"])
-            }).execute()
+            else:
+                supabase.table("cashbook").insert({
+                    "amount": actual_given,
+                    "type": "debit",
+                    "source": "loan",
+                    "reference_id": str(inserted_customer["customer_id"])
+                }).execute()
 
     except Exception as e:
         print("Cashbook loan error:", e)
@@ -210,57 +207,133 @@ def delete_customer(customer_id: int):
         return {"error": str(e)}
     
 @router.put("/activate-loan/{customer_id}")
-def activate_loan(customer_id: int):
+def activate_loan(customer_id: int, data: CustomerActivate):
 
     try:
 
+        loan_date = (data.loan_date or "").strip()
+        if not loan_date:
+            raise HTTPException(status_code=400, detail="Loan Given Date is required")
+
         # Get customer
-        res = supabase.table("customers") \
-            .select("*") \
-            .eq("customer_id", customer_id) \
+        res = (
+            supabase.table("customers")
+            .select("*")
+            .eq("customer_id", customer_id)
             .execute()
+        )
 
         if not res.data:
-            return {"error": "Customer not found"}
+            raise HTTPException(status_code=400, detail="Customer not found")
 
         customer = res.data[0]
 
-        # Already active
+        # Already active check
         if customer.get("loan_given"):
-            return {"error": "Loan already activated"}
+            raise HTTPException(status_code=400, detail="Loan already activated")
+
+        # Calculate / Validate Due Date
+        if customer.get("type") == "DL":
+            try:
+                due_date_obj = datetime.strptime(loan_date, "%Y-%m-%d") + timedelta(days=100)
+                due_date = due_date_obj.strftime("%Y-%m-%d")
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid Loan Given Date format. Use YYYY-MM-DD.")
+        else:
+            # Furniture: manual loan_date and manual due_date selected by user
+            due_date = (data.due_date or "").strip()
+            if not due_date:
+                raise HTTPException(status_code=400, detail="Due Date is required for Furniture activation")
+            try:
+                datetime.strptime(loan_date, "%Y-%m-%d")
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid Loan Given Date format. Use YYYY-MM-DD.")
+            try:
+                datetime.strptime(due_date, "%Y-%m-%d")
+            except ValueError:
+                raise HTTPException(status_code=400, detail="Invalid Due Date format. Use YYYY-MM-DD.")
 
         # Update customer
-        update_res = supabase.table("customers") \
-            .update({"loan_given": True}) \
-            .eq("customer_id", customer_id) \
+        update_res = (
+            supabase.table("customers")
+            .update({
+                "loan_given": True,
+                "loan_date": loan_date,
+                "due_date": due_date
+            })
+            .eq("customer_id", customer_id)
             .execute()
-
-        print("UPDATE RESULT:", update_res.data)
-
-        verify = supabase.table("customers") \
-            .select("customer_id,loan_given") \
-            .eq("customer_id", customer_id) \
-            .execute()
-
-        print("VERIFY:", verify.data)
-
-        # Create cashbook debit
-        actual_given = (
-            (customer.get("loan_amount") or 0)
-            - (customer.get("interest") or 0)
         )
 
-        supabase.table("cashbook").insert({
-            "amount": actual_given,
-            "type": "debit",
-            "source": "loan",
-            "reference_id": str(customer_id)
-        }).execute()
+        if not update_res.data:
+            raise HTTPException(status_code=400, detail="Failed to update customer status")
+
+        # Post cashbook entries with rollback protection
+        inserted_cashbook_ids = []
+        try:
+            if customer.get("type") == "Furniture":
+                selling_price = customer.get("selling_price") or 0
+                advance_amount = customer.get("advance_amount") or 0
+                interest = customer.get("interest") or 0
+                loan_amount = customer.get("loan_amount") or (selling_price - advance_amount)
+                actual_given = loan_amount - interest
+
+                if advance_amount > 0:
+                    adv_res = supabase.table("cashbook").insert({
+                        "amount": advance_amount,
+                        "type": "credit",
+                        "source": "advance",
+                        "reference_id": str(customer_id)
+                    }).execute()
+                    if adv_res.data:
+                        inserted_cashbook_ids.extend([item["id"] for item in adv_res.data if "id" in item])
+
+                pur_res = supabase.table("cashbook").insert({
+                    "amount": actual_given,
+                    "type": "debit",
+                    "source": "purchase",
+                    "reference_id": str(customer_id)
+                }).execute()
+                if pur_res.data:
+                    inserted_cashbook_ids.extend([item["id"] for item in pur_res.data if "id" in item])
+
+            else:
+                loan_amount = customer.get("loan_amount") or 0
+                interest = customer.get("interest") or 0
+                actual_given = loan_amount - interest
+
+                debit_res = supabase.table("cashbook").insert({
+                    "amount": actual_given,
+                    "type": "debit",
+                    "source": "loan",
+                    "reference_id": str(customer_id)
+                }).execute()
+                if debit_res.data:
+                    inserted_cashbook_ids.extend([item["id"] for item in debit_res.data if "id" in item])
+
+        except Exception as cb_err:
+            # Rollback: revert customer status and delete newly created cashbook entries only
+            supabase.table("customers").update({
+                "loan_given": False,
+                "loan_date": None,
+                "due_date": customer.get("due_date") if customer.get("type") == "Furniture" else None
+            }).eq("customer_id", customer_id).execute()
+
+            if inserted_cashbook_ids:
+                for cb_id in inserted_cashbook_ids:
+                    supabase.table("cashbook").delete().eq("id", cb_id).execute()
+
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to post cashbook entry: {str(cb_err)}. Customer activation rolled back."
+            )
 
         return {"message": "Loan activated successfully"}
 
+    except HTTPException:
+        raise
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
     
 
 @router.put("/close-loan/{customer_id}")

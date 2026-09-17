@@ -1,4 +1,4 @@
-function CashDrawer({ open, onClose, cash, summary }) {
+function CashDrawer({ open, onClose, cash, summary, onAddInvestment }) {
 
     if (!open) return null;
 
@@ -25,17 +25,28 @@ function CashDrawer({ open, onClose, cash, summary }) {
 
                 </div>
 
-                <div className="bg-slate-800 rounded-xl p-4 mb-6">
+                <div className="bg-slate-800 rounded-xl p-4 mb-4">
 
                     <p className="text-slate-400">
                         Current Balance
                     </p>
 
                     <h1 className="text-2xl lg:text-3xl font-bold text-green-400 mt-2">
-                        ₹{cash.cash_balance}
+                        ₹{(cash.cash_balance || 0).toLocaleString("en-IN")}
                     </h1>
 
                 </div>
+
+                {/* Add Investment button */}
+                {onAddInvestment && (
+                    <button
+                        onClick={onAddInvestment}
+                        className="w-full mb-6 px-4 py-3.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-semibold transition-all duration-200 active:scale-[0.98] shadow-md flex items-center justify-center gap-2"
+                    >
+                        <span className="text-lg">💰</span>
+                        Add Investment
+                    </button>
+                )}
 
                 <div className="space-y-4">
 

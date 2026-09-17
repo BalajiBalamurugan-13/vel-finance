@@ -1,38 +1,57 @@
 import PageHeader from "../components/PageHeader";
 import StatusBanner from "../components/StatusBanner";
 import { useEffect, useState } from "react";
-import { getDashboard, getTodayCashFlow} from "../services/dashboardService";
+import { getDashboard, getTodayCashFlow, getMigrationStatus } from "../services/dashboardService";
 import CollectionDrawer from "../components/Dashboard/CollectionDrawer";
 import DashboardMetrics from "../components/Dashboard/DashboardMetrics";
 import NotPaidSection from "../components/Dashboard/NotPaidSection";
 import ExpenseDrawer from "../components/Dashboard/ExpenseDrawer";
 import NetDrawer from "../components/Dashboard/NetDrawer";
 import CashDrawer from "../components/Dashboard/CashDrawer";
+import InvestmentDrawer from "../components/Dashboard/InvestmentDrawer";
+import MigrationBanner from "../components/Dashboard/MigrationBanner";
 
 
 function Dashboard() {
     const [dashboardData, setDashboardData] = useState(null);
     const [selectedCard, setSelectedCard] = useState(null);
     const [cashFlow, setCashFlow] = useState(null);
+    const [migrationStatus, setMigrationStatus] = useState(null);
+
     useEffect(() => {
-      async function loadDashboard() {
-        const data = await getDashboard();
-        setDashboardData(data);
-      }
-
       loadDashboard();
-
-      
+      loadMigrationStatus();
     }, []);
-    async function openCashDrawer() {
 
-        const flow = await getTodayCashFlow();
-
-        setCashFlow(flow);
-
-        setSelectedCard("cash");
-
+    async function loadDashboard() {
+      const data = await getDashboard();
+      setDashboardData(data);
     }
+
+    async function loadMigrationStatus() {
+      try {
+        const status = await getMigrationStatus();
+        setMigrationStatus(status);
+      } catch {
+        setMigrationStatus({ completed: false });
+      }
+    }
+
+    async function openCashDrawer() {
+        const flow = await getTodayCashFlow();
+        setCashFlow(flow);
+        setSelectedCard("cash");
+    }
+
+    async function handleMigrationComplete() {
+      await loadDashboard();
+      await loadMigrationStatus();
+    }
+
+    async function handleInvestmentSuccess() {
+      await loadDashboard();
+    }
+
     if (!dashboardData) {
         return (
             <div className="flex items-center justify-center h-[70vh]">
@@ -54,6 +73,14 @@ function Dashboard() {
       />
 
       <StatusBanner status="online" />
+
+      {/* Migration Banner — only before migration is completed */}
+      {migrationStatus && !migrationStatus.completed && (
+        <MigrationBanner
+          onMigrationComplete={handleMigrationComplete}
+          currentBalance={dashboardData?.cash?.cash_balance}
+        />
+      )}
 
       <DashboardMetrics
             summary={dashboardData.summary}
@@ -96,6 +123,12 @@ function Dashboard() {
                 onClose={() => setSelectedCard(null)}
                 cash={dashboardData.cash}
                 summary={cashFlow}
+                onAddInvestment={() => setSelectedCard("investment")}
+            />
+            <InvestmentDrawer
+                open={selectedCard === "investment"}
+                onClose={() => setSelectedCard(null)}
+                onSuccess={handleInvestmentSuccess}
             />
         </div>
         

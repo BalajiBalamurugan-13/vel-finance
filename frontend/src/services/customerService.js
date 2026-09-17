@@ -24,10 +24,11 @@ export async function deleteCustomer(customerId) {
     return response.data;
 }
 
-export async function activateLoan(customerId) {
+export async function activateLoan(customerId, data) {
 
     const response = await api.put(
-        `/customers/activate-loan/${customerId}`
+        `/customers/activate-loan/${customerId}`,
+        data
     );
 
     return response.data;

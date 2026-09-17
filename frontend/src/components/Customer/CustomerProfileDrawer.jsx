@@ -10,6 +10,7 @@ import {
     closeLoan
 } from "../../services/customerService";
 import { getPlaces } from "../../services/placeService";
+import logoWatermark from "../../assets/Vel finance logo white.png";
 
 
 function CustomerProfileDrawer({
@@ -25,6 +26,12 @@ function CustomerProfileDrawer({
     );
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
     const [showCloseLoanDialog, setShowCloseLoanDialog] = useState(false);
+    const [showActivateModal, setShowActivateModal] = useState(false);
+    const [activateLoanDate, setActivateLoanDate] = useState(
+        new Date().toISOString().split("T")[0]
+    );
+    const [activateDueDate, setActivateDueDate] = useState("");
+    const [activating, setActivating] = useState(false);
     const [isEditing, setIsEditing] = useState(false);
     const [places, setPlaces] = useState([]);
 
@@ -168,25 +175,49 @@ function CustomerProfileDrawer({
         }
 
     }
-    async function handleActivateLoan() {
+    async function handleConfirmActivateLoan() {
 
+        if (!activateLoanDate) {
+            toast.warning("Please select a valid Loan Given Date.");
+            return;
+        }
+
+        if (customer.type === "Furniture" && !activateDueDate) {
+            toast.warning("Please select a valid Due Date.");
+            return;
+        }
+
+        setActivating(true);
         try {
 
-            await activateLoan(customer.customer_id);
+            const payload = {
+                loan_date: activateLoanDate,
+                ...(customer.type === "Furniture" ? { due_date: activateDueDate } : {})
+            };
+
+            await activateLoan(customer.customer_id, payload);
 
             toast.success("Loan activated successfully!");
 
+            setShowActivateModal(false);
+
             await refreshCustomer(customer.customer_id, false);
+            if (refreshCustomers) {
+                await refreshCustomers();
+            }
 
         } catch (error) {
 
             console.error(error);
 
             toast.error(
+                error.response?.data?.detail ||
                 error.response?.data?.error ||
                 "Failed to activate loan."
             );
 
+        } finally {
+            setActivating(false);
         }
 
     }
@@ -252,14 +283,25 @@ function CustomerProfileDrawer({
         >
     <div className="space-y-4">
         <div className="
+            relative
             bg-[#182238]
             border
             border-slate-800
             rounded-2xl
             p-5
             shadow-lg
-            space-y-4
+            overflow-hidden
         ">
+            {/* Subtle Centered Background Watermark */}
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0" aria-hidden="true">
+                <img
+                    src={logoWatermark}
+                    alt=""
+                    className="w-56 h-56 max-w-[70%] max-h-[70%] object-contain opacity-[0.14] select-none pointer-events-none transform -translate-x-[4.5%] translate-y-[2%]"
+                />
+            </div>
+
+            <div className="relative z-10 space-y-4">
 
    
 
@@ -382,6 +424,13 @@ function CustomerProfileDrawer({
                 </span>
             </div>
 
+            {customer.loan_date && (
+                <div className="flex justify-between items-center">
+                    <span className="text-slate-400">Loan Date</span>
+                    <span className="text-slate-200">{customer.loan_date}</span>
+                </div>
+            )}
+
             <div className="flex justify-between items-center">
                 <span className="text-slate-400">Due Date</span>
                 <span>{customer.due_date || "-"}</span>
@@ -396,6 +445,7 @@ function CustomerProfileDrawer({
 
     )}
 
+    </div>
 </div>
 
         <div className="grid grid-cols-3 gap-3">
@@ -621,7 +671,7 @@ function CustomerProfileDrawer({
         </div>
 
 
-        {customer.type === "DL" && !customer.loan_given && (
+        {!customer.loan_given && (
         <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl py-3.5 px-4">
 
             <p className="text-amber-400 font-semibold mb-2 text-sm">
@@ -629,7 +679,11 @@ function CustomerProfileDrawer({
             </p>
 
             <button
-                onClick={handleActivateLoan}
+                onClick={() => {
+                    setActivateLoanDate(new Date().toISOString().split("T")[0]);
+                    setActivateDueDate(customer.due_date || "");
+                    setShowActivateModal(true);
+                }}
                 className="
                     w-full
                     bg-amber-500
@@ -842,6 +896,87 @@ function CustomerProfileDrawer({
         onCancel={() => setShowCloseLoanDialog(false)}
         onConfirm={handleCloseLoan}
     />
+
+    {showActivateModal && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-[100] p-4">
+            <div className="relative bg-[#182238] rounded-2xl p-6 w-full max-w-sm mx-auto border border-slate-800 shadow-2xl overflow-hidden">
+                {/* Subtle Centered Background Watermark */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0" aria-hidden="true">
+                    <img
+                        src={logoWatermark}
+                        alt=""
+                        className="w-60 h-60 max-w-[65%] max-h-[65%] object-contain opacity-[0.14] select-none pointer-events-none transform -translate-x-[4.5%] translate-y-[2%]"
+                    />
+                </div>
+
+                {/* Modal Content */}
+                <div className="relative z-10 space-y-4">
+                    <h2 className="text-xl font-bold text-white flex items-center gap-2">
+                        💰 Activate Loan
+                    </h2>
+
+                    <p className="text-slate-300 text-sm leading-relaxed">
+                        {customer.type === "Furniture"
+                            ? "Enter the loan dates before activation."
+                            : "Enter the date on which the loan was actually given."}
+                    </p>
+
+                    <div>
+                        <label className="block text-sm font-medium text-slate-300 mb-2">
+                            Loan Given Date <span className="text-rose-400">*</span>
+                        </label>
+                        <input
+                            type="date"
+                            value={activateLoanDate}
+                            onChange={(e) => setActivateLoanDate(e.target.value)}
+                            className="w-full bg-[#0f172a] border border-slate-700/80 rounded-xl px-4 py-3.5 text-white color-scheme-dark focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                        />
+                    </div>
+
+                    {customer.type === "Furniture" && (
+                        <div>
+                            <label className="block text-sm font-medium text-slate-300 mb-2">
+                                Due Date <span className="text-rose-400">*</span>
+                            </label>
+                            <input
+                                type="date"
+                                value={activateDueDate}
+                                onChange={(e) => setActivateDueDate(e.target.value)}
+                                className="w-full bg-[#0f172a] border border-slate-700/80 rounded-xl px-4 py-3.5 text-white color-scheme-dark focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                            />
+                        </div>
+                    )}
+
+                    <div className="flex justify-end gap-3 pt-4 border-t border-slate-800">
+                        <button
+                            type="button"
+                            disabled={activating}
+                            onClick={() => setShowActivateModal(false)}
+                            className="px-5 py-3 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 font-semibold transition active:scale-[0.98] disabled:opacity-50"
+                        >
+                            Cancel
+                        </button>
+
+                        <button
+                            type="button"
+                            disabled={activating || !activateLoanDate || (customer.type === "Furniture" && !activateDueDate)}
+                            onClick={handleConfirmActivateLoan}
+                            className="px-5 py-3 rounded-xl bg-amber-500 hover:bg-amber-600 text-slate-950 font-semibold transition active:scale-[0.98] shadow-md shadow-amber-950/30 disabled:opacity-50 flex items-center gap-2"
+                        >
+                            {activating ? (
+                                <>
+                                    <span className="h-4 w-4 border-2 border-slate-950 border-t-transparent rounded-full animate-spin"></span>
+                                    Activating...
+                                </>
+                            ) : (
+                                "Activate Loan"
+                            )}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )}
 </DetailDrawer>
 
     );
