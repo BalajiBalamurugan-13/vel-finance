@@ -40,27 +40,27 @@ function getDailyAmount(customer) {
 // ─── A4 Landscape Layout Constants ──────────────────────────────────────────
 //
 // Physical paper:  297 mm wide × 210 mm tall  (A4 landscape)
-// @page margin:    10 mm all sides
+// @page margin:    7 mm top/bottom, 10 mm left/right
 //   Printable width:  297 - 20 = 277 mm
-//   Printable height: 210 - 20 = 190 mm
+//   Printable height: 210 - 14 = 196 mm
 //
-// Vertical budget (190 mm):
-//   Header block (title + subtitle + date)    =   9.5 mm
-//   Table thead row                           =   4.5 mm
-//   Table outer borders (top + bottom)        =   0.5 mm
-//   Safety buffer                             =  12.5 mm  (guarantees iOS Safari never overflows)
-//   Available for data rows                   = 163.0 mm
+// Vertical budget (196 mm):
+//   Header block (single line: title + date + page #) =   6.80 mm
+//   Table thead row + outer border                   =   5.00 mm
+//   29 data rows (worst case, all customer rows)      = 181.54 mm
+//   Safety buffer remaining                           =   2.66 mm
+//   (Note: Each place-header row is 4.5mm vs 6.0mm customer row, so place headers
+//    further increase the safety buffer by 1.5mm per header while taking 1 row slot)
+//   Available for data rows                           = 182.0 mm
 //
 // Row height: 6.0 mm + 0.26 mm border = 6.26 mm pitch
-// Rows per half = floor(163.0 / 6.26) = 26
-// Items per page = 26 × 2 = 52
-//
-// Place header row: 4.5 mm height (shorter than customer row, giving even more safety)
+// Rows per half = floor(182.0 / 6.26) = 29
+// Items per page = 29 × 2 = 58
 
-const AVAIL_ROW_MM   = 163.0;
+const AVAIL_ROW_MM   = 182.0;
 const ROW_PITCH_MM   = 6.26;
-const ROWS_PER_HALF  = Math.floor(AVAIL_ROW_MM / ROW_PITCH_MM); // 26
-const ITEMS_PER_PAGE = ROWS_PER_HALF * 2;                       // 52
+const ROWS_PER_HALF  = Math.floor(AVAIL_ROW_MM / ROW_PITCH_MM); // 29
+const ITEMS_PER_PAGE = ROWS_PER_HALF * 2;                       // 58
 
 // ─── Row-stream builder ──────────────────────────────────────────────────────
 //
@@ -320,8 +320,8 @@ function CollectionSheet() {
 
               <div className="print-header">
                 <div className="print-title">VEL FINANCE</div>
-                <div className="print-subtitle">Daily Collection Sheet</div>
-                <div className="print-date">Date: {displayDate}</div>
+                <div className="print-date">DATE: {displayDate.toUpperCase()}</div>
+                <div className="print-page-num">{pageIdx + 1}</div>
               </div>
 
               <div className="print-tables-row">
