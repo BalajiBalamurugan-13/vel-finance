@@ -170,11 +170,28 @@ def get_customers():
         .execute()
     )
 
+    # Fetch transactions to calculate authoritative total_paid and balance per customer
+    txn_res = (
+        supabase.table("transactions")
+        .select("customer_id, amount_paid")
+        .execute()
+    )
+
+    paid_map = {}
+    for t in (txn_res.data or []):
+        cid = t.get("customer_id")
+        if cid is not None:
+            paid_map[cid] = paid_map.get(cid, 0) + (t.get("amount_paid", 0) or 0)
+
     customers = []
     for c in (res.data or []):
         place_info = c.pop("places", None) or {}
         c["place_name"] = place_info.get("name")
         c["place_priority"] = place_info.get("priority")
+        cid = c.get("customer_id")
+        paid = paid_map.get(cid, 0)
+        c["total_paid"] = paid
+        c["balance"] = (c.get("loan_amount") or 0) - paid
         customers.append(c)
 
     return customers

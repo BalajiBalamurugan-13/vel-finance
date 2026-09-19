@@ -265,7 +265,8 @@ body,
 
   .col-balance {
     width: 19%;
-    text-align: left;
+    text-align: right;
+    padding-right: 2.5mm;
   }
 
   /* 11. Table header row */
@@ -365,12 +366,21 @@ body,
     white-space: nowrap;
   }
 
-  /* Extra and Balance: blank, left-aligned for handwriting */
-  .print-table td.col-extra,
-  .print-table td.col-balance {
+  /* Extra: blank, left-aligned for handwriting */
+  .print-table td.col-extra {
     text-align: left;
     font-size: 9.5pt;
     color: #000000;
+  }
+
+  /* Balance: printed amount, right-aligned with bold weight for Xerox clarity */
+  .print-table td.col-balance {
+    text-align: right;
+    padding-right: 2.5mm;
+    font-size: 9.5pt;
+    font-weight: 800;
+    color: #000000;
+    white-space: nowrap;
   }
 
   /* Remove right border on last column */

@@ -132,6 +132,13 @@ function paginateStream(stream) {
 
 // ─── Render a single half-table row ─────────────────────────────────────────
 
+function formatBalance(val) {
+  if (val == null) return "";
+  const num = Number(val);
+  if (isNaN(num)) return "";
+  return num.toLocaleString("en-IN");
+}
+
 function PrintRow({ item }) {
   if (item.type === "place-header") {
     return (
@@ -149,7 +156,7 @@ function PrintRow({ item }) {
       <td className="col-name">{c.name}</td>
       <td className="col-amount">{getDailyAmount(c)}</td>
       <td className="col-extra"></td>
-      <td className="col-balance"></td>
+      <td className="col-balance">{formatBalance(c.balance)}</td>
     </tr>
   );
 }

@@ -539,6 +539,26 @@ function CustomerProfileDrawer({
                     Amount
                 </label>
 
+                {/* Quick Amount Buttons */}
+                <div className="flex flex-wrap gap-2 mb-2.5">
+                    {[50, 100, 150, 200, 250].map((amt) => (
+                        <button
+                            key={amt}
+                            type="button"
+                            onClick={() => setAmount(String(amt))}
+                            className={`
+                                flex-1 min-w-[52px] py-2 px-2 rounded-xl text-xs font-bold border transition-all text-center
+                                ${Number(amount) === amt
+                                    ? "bg-emerald-600 text-white border-emerald-500 shadow-md shadow-emerald-950/40"
+                                    : "bg-[#0f172a] text-slate-300 border-slate-700/80 hover:bg-slate-800 hover:text-white active:scale-95"
+                                }
+                            `}
+                        >
+                            ₹{amt}
+                        </button>
+                    ))}
+                </div>
+
                 <input
                     type="number"
                     value={amount}
