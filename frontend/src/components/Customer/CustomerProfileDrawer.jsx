@@ -7,7 +7,8 @@ import {
     deleteCustomer,
     activateLoan,
     updateCustomer,
-    closeLoan
+    closeLoan,
+    reopenLoan
 } from "../../services/customerService";
 import { getPlaces } from "../../services/placeService";
 import logoWatermark from "../../assets/Vel finance logo white.png";
@@ -157,11 +158,15 @@ function CustomerProfileDrawer({
 
             toast.success("Loan closed successfully!");
 
-            await refreshCustomers();
-
             setShowCloseLoanDialog(false);
 
-            onClose();
+            if (refreshCustomer) {
+                await refreshCustomer(customer.customer_id, false);
+            }
+
+            if (refreshCustomers) {
+                await refreshCustomers();
+            }
 
         } catch (error) {
 
@@ -170,6 +175,35 @@ function CustomerProfileDrawer({
             toast.error(
                 error.response?.data?.error ||
                 "Failed to close loan."
+            );
+
+        }
+
+    }
+
+    async function handleReopenLoan() {
+
+        try {
+
+            await reopenLoan(customer.customer_id);
+
+            toast.success("Loan reopened successfully!");
+
+            if (refreshCustomer) {
+                await refreshCustomer(customer.customer_id, false);
+            }
+
+            if (refreshCustomers) {
+                await refreshCustomers();
+            }
+
+        } catch (error) {
+
+            console.error(error);
+
+            toast.error(
+                error.response?.data?.error ||
+                "Failed to reopen loan."
             );
 
         }
@@ -495,28 +529,32 @@ function CustomerProfileDrawer({
                     text-sm
                     font-semibold
                     ${
-                        !customer.loan_given
+                        customer.is_closed
+                            ? "bg-slate-700/50 text-slate-300 border border-slate-600/50 shadow-sm"
+                            : !customer.loan_given
                             ? "bg-amber-500/20 text-amber-400 border border-amber-500/30"
                             : customer.status === "OVERDUE"
                             ? "bg-rose-500/20 text-rose-400 border border-rose-500/30"
-                            : customer.balance === 0
+                            : (customer.balance <= 0 || customer.ready_to_close)
                             ? "bg-sky-500/20 text-sky-400 border border-sky-500/30"
                             : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
                     }
                 `}
             >
-                {!customer.loan_given
+                {customer.is_closed
+                    ? "🔒 Loan Closed"
+                    : !customer.loan_given
                     ? "🟡 Loan Not Activated"
                     : customer.status === "OVERDUE"
                     ? `🔴 ${customer.overdue_days} Days Overdue`
-                    : customer.balance === 0
+                    : (customer.balance <= 0 || customer.ready_to_close)
                     ? "🎉 Loan Completed"
                     : "🟢 Active Loan"}
             </span>
 
         </div>
         
-        {customer.loan_given && !customer.ready_to_close && (
+        {customer.loan_given && !customer.ready_to_close && !customer.is_closed && Number(customer.balance) > 0 && (
         <div className="
             bg-[#182238]
             border
@@ -778,27 +816,95 @@ function CustomerProfileDrawer({
 
         </div>
         )}
-        <div className="mt-2">
+        <div className="mt-2 space-y-2">
 
-            {customer.ready_to_close ? (
+            {customer.is_closed ? (
 
-                <button
-                    onClick={() => setShowCloseLoanDialog(true)}
-                    className="
-                        w-full
-                        bg-emerald-600
-                        hover:bg-emerald-500
-                        active:scale-[0.98]
-                        rounded-xl
-                        py-3.5
-                        font-semibold
-                        text-white
-                        shadow-lg
-                        transition-all
-                    "
-                >
-                    ✅ Close Loan
-                </button>
+                <>
+                    <button
+                        onClick={handleReopenLoan}
+                        className="
+                            w-full
+                            bg-amber-600
+                            hover:bg-amber-500
+                            active:scale-[0.98]
+                            rounded-xl
+                            py-3.5
+                            font-semibold
+                            text-white
+                            shadow-lg
+                            shadow-amber-950/40
+                            transition-all
+                        "
+                    >
+                        🔓 Reopen Loan
+                    </button>
+
+                    <button
+                        onClick={() => setShowDeleteDialog(true)}
+                        className="
+                            w-full
+                            bg-slate-800/80
+                            hover:bg-rose-900/40
+                            border
+                            border-slate-700
+                            hover:border-rose-700/50
+                            py-2.5
+                            font-medium
+                            text-slate-400
+                            hover:text-rose-300
+                            rounded-xl
+                            transition-all
+                            text-xs
+                        "
+                    >
+                        🗑 Permanently Delete Customer
+                    </button>
+                </>
+
+            ) : (customer.ready_to_close || Number(customer.balance) <= 0) ? (
+
+                <>
+                    <button
+                        onClick={() => setShowCloseLoanDialog(true)}
+                        className="
+                            w-full
+                            bg-emerald-600
+                            hover:bg-emerald-500
+                            active:scale-[0.98]
+                            rounded-xl
+                            py-3.5
+                            font-semibold
+                            text-white
+                            shadow-lg
+                            shadow-emerald-950/40
+                            transition-all
+                        "
+                    >
+                        ✅ Close Loan
+                    </button>
+
+                    <button
+                        onClick={() => setShowDeleteDialog(true)}
+                        className="
+                            w-full
+                            bg-slate-800/80
+                            hover:bg-rose-900/40
+                            border
+                            border-slate-700
+                            hover:border-rose-700/50
+                            py-2.5
+                            font-medium
+                            text-slate-400
+                            hover:text-rose-300
+                            rounded-xl
+                            transition-all
+                            text-xs
+                        "
+                    >
+                        🗑 Delete Customer
+                    </button>
+                </>
 
             ) : (
 
@@ -814,6 +920,7 @@ function CustomerProfileDrawer({
                         font-semibold
                         text-white
                         shadow-lg
+                        shadow-rose-950/40
                         transition-all
                     "
                 >
@@ -898,20 +1005,16 @@ function CustomerProfileDrawer({
     <ConfirmDialog
         open={showCloseLoanDialog}
         title="Close Completed Loan?"
-        message={`
-    This customer has completed all payments.
+        message={`This customer has completed all loan payments.
 
-    Closing the loan will:
+Closing this loan will:
+• Change status to CLOSED
+• Remove customer from daily collection sheets
+• KEEP all payment history and transaction records 100% safe
+• KEEP all collection totals and cashbook entries accurate
 
-    • Delete Customer
-    • Delete Payment History
-    • Delete Transactions
-
-    Cashbook entries will be kept.
-
-    Do you want to continue?
-    `}
-        confirmText="Close Loan"
+Do you want to close this loan?`}
+        confirmText="Yes, Close Loan"
         cancelText="Cancel"
         onCancel={() => setShowCloseLoanDialog(false)}
         onConfirm={handleCloseLoan}

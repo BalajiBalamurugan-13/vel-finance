@@ -4,6 +4,7 @@ from backend.schemas import TransactionCreate, InvestmentCreate
 from datetime import date
 from datetime import datetime, timedelta
 from time import perf_counter
+from backend.routes.customers import get_closed_customer_ids
 
 
 
@@ -109,7 +110,19 @@ def get_customer_balance(customer_id: int):
     else:
         due_date = None
 
-    if due_date and today > due_date:
+    closed_ids = get_closed_customer_ids()
+    is_closed = customer_id in closed_ids
+
+    if is_closed:
+        overdue_days = 0
+        status = "CLOSED"
+    elif not customer.get("loan_given", True):
+        overdue_days = 0
+        status = "PENDING"
+    elif balance <= 0 or customer.get("ready_to_close"):
+        overdue_days = 0
+        status = "COMPLETED"
+    elif due_date and today > due_date:
         overdue_days = (today - due_date).days
         status = "OVERDUE"
     else:
@@ -124,7 +137,8 @@ def get_customer_balance(customer_id: int):
     "interest": customer.get("interest"),
     "type": customer.get("type"),
     "loan_given": customer.get("loan_given"),
-    "ready_to_close": customer.get("ready_to_close"),   # <-- ADD THIS
+    "ready_to_close": customer.get("ready_to_close") or is_closed or (balance <= 0),
+    "is_closed": is_closed,
     "loan_amount": customer.get("loan_amount"),
     "net_given": customer.get("net_given"),
     "loan_date": customer.get("loan_date"),
@@ -266,8 +280,10 @@ def get_not_paid_logic():
     today = date.today().isoformat()
 
     customers = supabase.table("customers") \
-    .select("customer_id,name,address,loan_given") \
-    .execute().data or []
+        .select("customer_id,name,address,loan_given,ready_to_close") \
+        .execute().data or []
+
+    closed_ids = get_closed_customer_ids()
 
     txns = supabase.table("transactions") \
         .select("customer_id") \
@@ -279,11 +295,17 @@ def get_not_paid_logic():
     not_paid = []
 
     for c in customers:
+        cid = c.get("customer_id")
         if not c.get("loan_given", True):
             continue
-        if c["customer_id"] not in paid_today:
+        if cid in closed_ids:
+            continue
+        if c.get("ready_to_close"):
+            continue
+
+        if cid not in paid_today:
             not_paid.append({
-                "customer_id": c["customer_id"],
+                "customer_id": cid,
                 "name": c["name"],
                 "address": c.get("address", "")
             })
@@ -294,12 +316,14 @@ def get_gaps_logic():
     today = date.today()
 
     customers = supabase.table("customers") \
-    .select("customer_id,name,loan_given") \
-    .execute().data or []
+        .select("customer_id,name,loan_given,ready_to_close") \
+        .execute().data or []
+
+    closed_ids = get_closed_customer_ids()
 
     all_txns = supabase.table("transactions") \
-    .select("customer_id,payment_date") \
-    .execute().data or []
+        .select("customer_id,payment_date") \
+        .execute().data or []
 
     txn_map = {}
     for t in all_txns:
@@ -309,13 +333,19 @@ def get_gaps_logic():
     gaps = []
 
     for c in customers:
+        cid = c.get("customer_id")
         if not c.get("loan_given", True):
             continue
-        transactions = txn_map.get(c["customer_id"], [])
+        if cid in closed_ids:
+            continue
+        if c.get("ready_to_close"):
+            continue
+
+        transactions = txn_map.get(cid, [])
 
         if not transactions:
             gaps.append({
-                "customer_id": c["customer_id"],
+                "customer_id": cid,
                 "name": c["name"],
                 "last_paid": "Never"
             })
@@ -329,7 +359,7 @@ def get_gaps_logic():
 
         if gap_days > 1:
             gaps.append({
-                "customer_id": c["customer_id"],
+                "customer_id": cid,
                 "name": c["name"],
                 "gap_days": gap_days,
                 "last_paid": str(last_payment)
@@ -379,19 +409,36 @@ def outstanding_by_type():
 
     try:
 
-        # Customers
-        cust_res = supabase.table("customers") \
-            .select("customer_id,loan_amount,type,loan_given") \
-            .execute()
+        PAGE_SIZE = 1000
+        customers = []
+        page = 0
+        while True:
+            batch = (
+                supabase.table("customers")
+                .select("customer_id,loan_amount,type,loan_given")
+                .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+                .execute()
+                .data or []
+            )
+            customers.extend(batch)
+            if len(batch) < PAGE_SIZE:
+                break
+            page += 1
 
-        customers = cust_res.data or []
-
-        # Transactions
-        txn_res = supabase.table("transactions") \
-            .select("customer_id,amount_paid") \
-            .execute()
-
-        transactions = txn_res.data or []
+        transactions = []
+        page = 0
+        while True:
+            batch = (
+                supabase.table("transactions")
+                .select("customer_id,amount_paid")
+                .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+                .execute()
+                .data or []
+            )
+            transactions.extend(batch)
+            if len(batch) < PAGE_SIZE:
+                break
+            page += 1
 
         paid_map = {}
 
@@ -410,25 +457,185 @@ def outstanding_by_type():
             "Total": 0
         }
 
-        for c in customers:
-            if not c.get("loan_given", True):
-                continue
+        closed_ids = get_closed_customer_ids()
 
+        for c in customers:
             cid = c.get("customer_id")
+            if not c.get("loan_given", True) or cid in closed_ids:
+                continue
 
             customer_type = c.get("type") or "DL"
 
             paid = paid_map.get(cid, 0)
 
-            balance = (
-                (c.get("loan_amount") or 0)
-                - paid
-            )
+            balance = max((c.get("loan_amount") or 0) - paid, 0)
 
             result[customer_type] += balance
             result["Total"] += balance
 
         return result
+
+    except Exception as e:
+        return {"error": str(e)}
+
+@router.get("/outstanding-details")
+def get_outstanding_details():
+    try:
+        PAGE_SIZE = 1000
+
+        # 1. Fetch active customers
+        customers = []
+        page = 0
+        while True:
+            batch = (
+                supabase.table("customers")
+                .select("customer_id,loan_amount,type,loan_given,place_id")
+                .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+                .execute()
+                .data or []
+            )
+            customers.extend(batch)
+            if len(batch) < PAGE_SIZE:
+                break
+            page += 1
+
+        # 2. Fetch transactions (paginated)
+        transactions = []
+        page = 0
+        while True:
+            batch = (
+                supabase.table("transactions")
+                .select("customer_id,amount_paid")
+                .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+                .execute()
+                .data or []
+            )
+            transactions.extend(batch)
+            if len(batch) < PAGE_SIZE:
+                break
+            page += 1
+
+        # 3. Fetch places
+        places = supabase.table("places").select("id,name,priority").order("priority").execute().data or []
+        place_map = {p["id"]: p for p in places}
+
+        # Initialize place_summary with all registered places from places table
+        place_summary = {}
+        for p in places:
+            pname = p.get("name") or "மற்றவை"
+            place_summary[pname] = {
+                "place_id": p.get("id"),
+                "place_name": pname,
+                "priority": p.get("priority", 999),
+                "count": 0,
+                "loan_amount": 0,
+                "paid_amount": 0,
+                "outstanding": 0
+            }
+
+        # 4. Map collected payments per customer
+        paid_map = {}
+        for t in transactions:
+            cid = t.get("customer_id")
+            if cid is not None:
+                paid_map[cid] = paid_map.get(cid, 0) + (t.get("amount_paid", 0) or 0)
+
+        # 5. Type metadata
+        type_labels = {
+            "DL": {"name": "Daily Loan (DL)", "icon": "📅", "color": "amber"},
+            "Furniture": {"name": "Furniture Loan", "icon": "🛋️", "color": "blue"},
+            "DPL": {"name": "Daily Period Loan (DPL)", "icon": "⏳", "color": "purple"}
+        }
+
+        type_summary = {}
+
+        total_active_loans = 0
+        total_loan_amount = 0
+        total_paid_amount = 0
+        total_outstanding = 0
+
+        closed_ids = get_closed_customer_ids()
+
+        for c in customers:
+            cid = c.get("customer_id")
+            if not c.get("loan_given", True) or cid in closed_ids:
+                continue
+
+            loan_amt = c.get("loan_amount", 0) or 0
+            paid = paid_map.get(cid, 0)
+            bal = max(loan_amt - paid, 0)
+
+            if bal <= 0:
+                continue
+
+            c_type = c.get("type") or "DL"
+            pid = c.get("place_id")
+            p_obj = place_map.get(pid, {})
+            pname = p_obj.get("name") or "மற்றவை"
+            priority = p_obj.get("priority", 999)
+
+            total_active_loans += 1
+            total_loan_amount += loan_amt
+            total_paid_amount += paid
+            total_outstanding += bal
+
+            # Group by type
+            if c_type not in type_summary:
+                meta = type_labels.get(c_type, {"name": c_type, "icon": "📁", "color": "slate"})
+                type_summary[c_type] = {
+                    "type": c_type,
+                    "name": meta["name"],
+                    "icon": meta["icon"],
+                    "color": meta["color"],
+                    "count": 0,
+                    "loan_amount": 0,
+                    "paid_amount": 0,
+                    "outstanding": 0
+                }
+            type_summary[c_type]["count"] += 1
+            type_summary[c_type]["loan_amount"] += loan_amt
+            type_summary[c_type]["paid_amount"] += paid
+            type_summary[c_type]["outstanding"] += bal
+
+            # Group by place
+            if pname not in place_summary:
+                place_summary[pname] = {
+                    "place_id": pid,
+                    "place_name": pname,
+                    "priority": priority,
+                    "count": 0,
+                    "loan_amount": 0,
+                    "paid_amount": 0,
+                    "outstanding": 0
+                }
+            place_summary[pname]["count"] += 1
+            place_summary[pname]["loan_amount"] += loan_amt
+            place_summary[pname]["paid_amount"] += paid
+            place_summary[pname]["outstanding"] += bal
+
+        # Calculate percentages
+        for item in type_summary.values():
+            item["percentage"] = round((item["outstanding"] / total_outstanding * 100), 1) if total_outstanding > 0 else 0
+            item["repaid_percentage"] = round((item["paid_amount"] / item["loan_amount"] * 100), 1) if item["loan_amount"] > 0 else 0
+
+        for item in place_summary.values():
+            item["percentage"] = round((item["outstanding"] / total_outstanding * 100), 1) if total_outstanding > 0 else 0
+            item["repaid_percentage"] = round((item["paid_amount"] / item["loan_amount"] * 100), 1) if item["loan_amount"] > 0 else 0
+
+        by_type = sorted(type_summary.values(), key=lambda x: x["outstanding"], reverse=True)
+        by_place = sorted(place_summary.values(), key=lambda x: x["outstanding"], reverse=True)
+
+        return {
+            "total": {
+                "count": total_active_loans,
+                "loan_amount": total_loan_amount,
+                "paid_amount": total_paid_amount,
+                "outstanding": total_outstanding,
+                "places_count": len(by_place)
+            },
+            "by_type": by_type,
+            "by_place": by_place
+        }
 
     except Exception as e:
         return {"error": str(e)}
@@ -467,53 +674,70 @@ def get_cash_balance():
 
     try:
 
-        res = (
-            supabase.table("cashbook")
-            .select("amount,type,source")
-            .execute()
-        )
+        # Supabase enforces a server-side 1000-row limit.
+        # Cashbook has grown beyond 1000 entries, so we must paginate
+        # to ensure ALL entries (including migration_offset) are included.
+        PAGE_SIZE = 1000
+        data = []
+        page = 0
+        while True:
+            batch = (
+                supabase.table("cashbook")
+                .select("amount,type,source,date")
+                .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+                .execute()
+                .data or []
+            )
+            data.extend(batch)
+            if len(batch) < PAGE_SIZE:
+                break
+            page += 1
 
-        data = res.data or []
+        today_str = date.today().isoformat()
+        operational_data = [
+            x for x in data
+            if not x.get("date") or str(x.get("date"))[:10] <= today_str
+        ]
 
         total_investment = sum(
             int(x.get("amount", 0))
-            for x in data
+            for x in operational_data
             if x.get("source") == "investment"
         )
 
         total_collection = sum(
             int(x.get("amount", 0))
-            for x in data
+            for x in operational_data
             if x.get("source") == "collection"
         )
 
         total_advance = sum(
             int(x.get("amount", 0))
-            for x in data
+            for x in operational_data
             if x.get("source") == "advance"
         )
 
         total_loan_given = sum(
             int(x.get("amount", 0))
-            for x in data
+            for x in operational_data
             if x.get("source") == "loan"
         )
 
         total_purchase = sum(
             int(x.get("amount", 0))
-            for x in data
+            for x in operational_data
             if x.get("source") == "purchase"
         )
 
         total_expense = sum(
             int(x.get("amount", 0))
-            for x in data
+            for x in operational_data
             if x.get("source") == "expense"
         )
 
         # Migration offset: internal accounting adjustment (not user-facing)
         total_migration_offset = 0
-        for x in data:
+        for x in operational_data:
             if x.get("source") == "migration_offset":
                 if x.get("type") == "credit":
                     total_migration_offset += int(x.get("amount", 0))
@@ -548,14 +772,25 @@ def get_cashbook():
 
     try:
 
-        res = (
-            supabase.table("cashbook")
-            .select("*")
-            .order("date", desc=True)
-            .execute()
-        )
+        # Paginate to bypass Supabase 1000-row server-side limit
+        PAGE_SIZE = 1000
+        all_rows = []
+        page = 0
+        while True:
+            batch = (
+                supabase.table("cashbook")
+                .select("*")
+                .order("date", desc=True)
+                .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+                .execute()
+                .data or []
+            )
+            all_rows.extend(batch)
+            if len(batch) < PAGE_SIZE:
+                break
+            page += 1
 
-        return res.data or []
+        return all_rows
 
     except Exception as e:
         return {"error": str(e)}    
@@ -622,22 +857,41 @@ def business_summary():
         # ----------------------------
         # Customers
         # ----------------------------
-        customers = supabase.table("customers") \
-            .select("customer_id, loan_amount, loan_given") \
-            .execute()
+        PAGE_SIZE = 1000
+        customers = []
+        page = 0
+        while True:
+            batch = (
+                supabase.table("customers")
+                .select("customer_id, loan_amount, loan_given")
+                .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+                .execute()
+                .data or []
+            )
+            customers.extend(batch)
+            if len(batch) < PAGE_SIZE:
+                break
+            page += 1
 
-        customers = customers.data or []
         total_customers = len(customers)
-
 
         # ----------------------------
         # Transactions
         # ----------------------------
-        txns = supabase.table("transactions") \
-            .select("customer_id, amount_paid") \
-            .execute()
-
-        txns = txns.data or []
+        txns = []
+        page = 0
+        while True:
+            batch = (
+                supabase.table("transactions")
+                .select("customer_id, amount_paid")
+                .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+                .execute()
+                .data or []
+            )
+            txns.extend(batch)
+            if len(batch) < PAGE_SIZE:
+                break
+            page += 1
 
         paid_map = {}
 
@@ -647,19 +901,25 @@ def business_summary():
                 txn.get("amount_paid", 0) or 0
             )
 
+        closed_ids = get_closed_customer_ids()
         outstanding = 0
         active_loans = 0
     
         for customer in customers:
-
+            cid = customer.get("customer_id")
             if not customer.get("loan_given", True):
                 continue
+            if cid in closed_ids:
+                continue
 
-            loan_amount = customer.get("loan_amount", 0)
-            collected = paid_map.get(customer["customer_id"], 0)
+            loan_amount = customer.get("loan_amount", 0) or 0
+            collected = paid_map.get(cid, 0)
+            bal = max(loan_amount - collected, 0)
 
-            outstanding += max(loan_amount - collected, 0)
+            if bal <= 0:
+                continue
 
+            outstanding += bal
             active_loans += 1
 
         return {
@@ -679,12 +939,23 @@ def calculate_cash_flow(selected_date: str):
 
     today = selected_date
 
-    data = (
-        supabase.table("cashbook")
-        .select("amount,source,type,date")
-        .execute()
-        .data or []
-    )
+    # Supabase enforces a server-side 1000-row limit — paginate to get all rows.
+    PAGE_SIZE = 1000
+    data = []
+    page = 0
+    while True:
+        batch = (
+            supabase.table("cashbook")
+            .select("amount,source,type,date")
+            .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+            .execute()
+            .data or []
+        )
+        data.extend(batch)
+        if len(batch) < PAGE_SIZE:
+            break
+        page += 1
+
 
     today_entries = []
     previous_entries = []

@@ -65,3 +65,12 @@ export async function closeLoan(customerId) {
     return res.data;
 }
 
+export async function reopenLoan(customerId) {
+    const res = await api.put(
+        `/customers/reopen-loan/${customerId}`
+    );
+
+    return res.data;
+}
+
+

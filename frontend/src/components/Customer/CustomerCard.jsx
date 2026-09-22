@@ -44,12 +44,22 @@ function CustomerCard({ customer, onClick }) {
 
                 <div
                     className={`text-xs font-semibold text-right ${
-                        customer.loan_given
-                            ? "text-emerald-400"
-                            : "text-amber-400"
+                        customer.is_closed
+                            ? "text-slate-400"
+                            : !customer.loan_given
+                            ? "text-amber-400"
+                            : (Number(customer.balance) <= 0 || customer.ready_to_close)
+                            ? "text-sky-400"
+                            : "text-emerald-400"
                     }`}
                 >
-                    {customer.loan_given ? "Active" : "Pending"}
+                    {customer.is_closed
+                        ? "Closed"
+                        : !customer.loan_given
+                        ? "Pending"
+                        : (Number(customer.balance) <= 0 || customer.ready_to_close)
+                        ? "Completed"
+                        : "Active"}
                 </div>
 
             </div>

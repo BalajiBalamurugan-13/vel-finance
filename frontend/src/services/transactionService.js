@@ -19,3 +19,10 @@ export async function getBusinessSummary() {
     return response.data;
 
 }
+
+export async function getOutstandingDetails() {
+    const response = await api.get(
+        "/transactions/outstanding-details"
+    );
+    return response.data;
+}

@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import { getBusinessSummary } from "../services/transactionService";
+import OutstandingDrawer from "../components/BusinessSummary/OutstandingDrawer";
+
 function formatCurrency(value) {
   return new Intl.NumberFormat("en-IN").format(value || 0);
 }
+
 function BusinessSummary() {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showOutstandingDrawer, setShowOutstandingDrawer] = useState(false);
 
   useEffect(() => {
     loadSummary();
@@ -37,8 +41,11 @@ function BusinessSummary() {
         title: "Outstanding",
         icon: "📈",
         value: `₹${formatCurrency(data.outstanding)}`,
-        border: "border-orange-500/20",
+        border: "border-orange-500/30 hover:border-orange-500/60",
         valueColor: "text-orange-400",
+        clickable: true,
+        hint: "Tap for breakdown ↗",
+        onClick: () => setShowOutstandingDrawer(true),
       },
       {
         title: "Total Customers",
@@ -76,11 +83,12 @@ function BusinessSummary() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
 
         {cards.map((card) => (
           <div
               key={card.title}
+              onClick={card.onClick}
               className={`
                 bg-slate-900
                 rounded-2xl
@@ -90,13 +98,22 @@ function BusinessSummary() {
                 shadow-md
                 transition-all
                 duration-200
-                hover:-translate-y-1
+                ${
+                  card.clickable
+                    ? "cursor-pointer hover:-translate-y-1 hover:bg-slate-800/80 active:scale-[0.98] ring-1 ring-orange-500/20"
+                    : "hover:-translate-y-0.5"
+                }
                 `}
           >
             <div className="flex items-center justify-between">
 
-              <p className="text-sm text-slate-400 font-medium">
+              <p className="text-sm text-slate-400 font-medium flex items-center gap-1.5">
                 {card.title}
+                {card.clickable && (
+                  <span className="text-[10px] text-orange-400/80 bg-orange-500/10 px-1.5 py-0.5 rounded border border-orange-500/20 font-normal">
+                    Details
+                  </span>
+                )}
               </p>
 
               <span className="text-3xl">
@@ -108,10 +125,22 @@ function BusinessSummary() {
             <h2 className={`text-4xl font-bold mt-5 ${card.valueColor}`}>
               {card.value}
             </h2>
+
+            {card.hint && (
+              <p className="text-xs text-orange-400/70 mt-2 font-medium">
+                {card.hint}
+              </p>
+            )}
           </div>
         ))}
 
       </div>
+
+      {/* Outstanding Breakdown Drawer */}
+      <OutstandingDrawer
+        open={showOutstandingDrawer}
+        onClose={() => setShowOutstandingDrawer(false)}
+      />
 
     </div>
   );

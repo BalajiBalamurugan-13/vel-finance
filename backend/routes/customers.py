@@ -3,7 +3,29 @@ from fastapi import HTTPException
 from backend.db import supabase
 from backend.schemas import CustomerCreate, CustomerUpdate, CustomerActivate
 from datetime import datetime, timedelta
+import json
+
 router = APIRouter(prefix="/customers", tags=["Customers"])
+
+def get_closed_customer_ids() -> set:
+    try:
+        res = (
+            supabase.table("app_settings")
+            .select("key")
+            .like("key", "closed_loan_%")
+            .execute()
+        )
+        ids = set()
+        for r in (res.data or []):
+            k = r.get("key", "")
+            if k.startswith("closed_loan_"):
+                try:
+                    ids.add(int(k.replace("closed_loan_", "")))
+                except ValueError:
+                    pass
+        return ids
+    except Exception:
+        return set()
 
 
 @router.post("/add")
@@ -118,6 +140,7 @@ def add_customer(data: CustomerCreate):
 
     try:
         inserted_customer = res.data[0] if res.data else {}
+        loan_date = customer.get("loan_date")  # Use actual loan date, not today
 
         if customer.get("loan_given", True):
             if customer["type"] == "Furniture":
@@ -127,7 +150,8 @@ def add_customer(data: CustomerCreate):
                         "amount": advance_amount,
                         "type": "credit",
                         "source": "advance",
-                        "reference_id": str(inserted_customer["customer_id"])
+                        "reference_id": str(inserted_customer["customer_id"]),
+                        "date": loan_date
                     }).execute()
 
                 # Purchase payment
@@ -135,7 +159,8 @@ def add_customer(data: CustomerCreate):
                     "amount": actual_given,
                     "type": "debit",
                     "source": "purchase",
-                    "reference_id": str(inserted_customer["customer_id"])
+                    "reference_id": str(inserted_customer["customer_id"]),
+                    "date": loan_date
                 }).execute()
 
             else:
@@ -143,7 +168,8 @@ def add_customer(data: CustomerCreate):
                     "amount": actual_given,
                     "type": "debit",
                     "source": "loan",
-                    "reference_id": str(inserted_customer["customer_id"])
+                    "reference_id": str(inserted_customer["customer_id"]),
+                    "date": loan_date
                 }).execute()
 
     except Exception as e:
@@ -171,17 +197,29 @@ def get_customers():
     )
 
     # Fetch transactions to calculate authoritative total_paid and balance per customer
-    txn_res = (
-        supabase.table("transactions")
-        .select("customer_id, amount_paid")
-        .execute()
-    )
+    PAGE_SIZE = 1000
+    all_txns = []
+    page = 0
+    while True:
+        batch = (
+            supabase.table("transactions")
+            .select("customer_id, amount_paid")
+            .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+            .execute()
+            .data or []
+        )
+        all_txns.extend(batch)
+        if len(batch) < PAGE_SIZE:
+            break
+        page += 1
 
     paid_map = {}
-    for t in (txn_res.data or []):
+    for t in all_txns:
         cid = t.get("customer_id")
         if cid is not None:
             paid_map[cid] = paid_map.get(cid, 0) + (t.get("amount_paid", 0) or 0)
+
+    closed_ids = get_closed_customer_ids()
 
     customers = []
     for c in (res.data or []):
@@ -190,8 +228,19 @@ def get_customers():
         c["place_priority"] = place_info.get("priority")
         cid = c.get("customer_id")
         paid = paid_map.get(cid, 0)
+        bal = (c.get("loan_amount") or 0) - paid
+        is_closed = cid in closed_ids
         c["total_paid"] = paid
-        c["balance"] = (c.get("loan_amount") or 0) - paid
+        c["balance"] = bal
+        c["is_closed"] = is_closed
+        if is_closed:
+            c["status"] = "CLOSED"
+        elif not c.get("loan_given", True):
+            c["status"] = "PENDING"
+        elif bal <= 0:
+            c["status"] = "COMPLETED"
+        else:
+            c["status"] = "ACTIVE"
         customers.append(c)
 
     return customers
@@ -300,7 +349,8 @@ def activate_loan(customer_id: int, data: CustomerActivate):
                         "amount": advance_amount,
                         "type": "credit",
                         "source": "advance",
-                        "reference_id": str(customer_id)
+                        "reference_id": str(customer_id),
+                        "date": loan_date  # Use actual loan date, not today
                     }).execute()
                     if adv_res.data:
                         inserted_cashbook_ids.extend([item["id"] for item in adv_res.data if "id" in item])
@@ -309,7 +359,8 @@ def activate_loan(customer_id: int, data: CustomerActivate):
                     "amount": actual_given,
                     "type": "debit",
                     "source": "purchase",
-                    "reference_id": str(customer_id)
+                    "reference_id": str(customer_id),
+                    "date": loan_date  # Use actual loan date, not today
                 }).execute()
                 if pur_res.data:
                     inserted_cashbook_ids.extend([item["id"] for item in pur_res.data if "id" in item])
@@ -323,7 +374,8 @@ def activate_loan(customer_id: int, data: CustomerActivate):
                     "amount": actual_given,
                     "type": "debit",
                     "source": "loan",
-                    "reference_id": str(customer_id)
+                    "reference_id": str(customer_id),
+                    "date": loan_date  # Use actual loan date, not today
                 }).execute()
                 if debit_res.data:
                     inserted_cashbook_ids.extend([item["id"] for item in debit_res.data if "id" in item])
@@ -360,7 +412,7 @@ def close_loan(customer_id: int):
 
         customer = (
             supabase.table("customers")
-            .select("ready_to_close")
+            .select("customer_id,ready_to_close,loan_amount")
             .eq("customer_id", customer_id)
             .execute()
         )
@@ -368,25 +420,42 @@ def close_loan(customer_id: int):
         if not customer.data:
             return {"error": "Customer not found"}
 
-        if not customer.data[0]["ready_to_close"]:
-            return {
-                "error": "Loan is not yet completed"
-            }
+        # State change to CLOSED without deleting the customer or transactions!
+        # This preserves payment history, transactions, and cash accounting records.
+        now = datetime.utcnow().isoformat() + "Z"
+        supabase.table("app_settings").upsert({
+            "key": f"closed_loan_{customer_id}",
+            "value": json.dumps({"closed_at": now})
+        }).execute()
 
-        # Delete all transactions
-        supabase.table("transactions") \
-            .delete() \
-            .eq("customer_id", customer_id) \
-            .execute()
-
-        # Delete customer
-        supabase.table("customers") \
-            .delete() \
-            .eq("customer_id", customer_id) \
-            .execute()
+        # Keep ready_to_close as True in customer record
+        supabase.table("customers").update({
+            "ready_to_close": True
+        }).eq("customer_id", customer_id).execute()
 
         return {
-            "message": "Loan closed successfully"
+            "message": "Loan closed successfully",
+            "customer_id": customer_id,
+            "is_closed": True
+        }
+
+    except Exception as e:
+
+        return {"error": str(e)}
+
+@router.put("/reopen-loan/{customer_id}")
+def reopen_loan(customer_id: int):
+
+    try:
+
+        supabase.table("app_settings").delete().eq(
+            "key", f"closed_loan_{customer_id}"
+        ).execute()
+
+        return {
+            "message": "Loan reopened successfully",
+            "customer_id": customer_id,
+            "is_closed": False
         }
 
     except Exception as e:

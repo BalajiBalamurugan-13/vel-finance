@@ -180,8 +180,10 @@ function CollectionSheet() {
         getPlaces(),
       ]);
 
-      // Active filter: loan_given === true
-      const active = allCustomers.filter((c) => c.loan_given);
+      // Active filter: loan_given === true, balance > 0, and not closed
+      const active = allCustomers.filter(
+        (c) => c.loan_given && Number(c.balance) > 0 && !c.is_closed
+      );
 
       console.log("[CollectionSheet] Data loaded", {
         totalFromAPI:  allCustomers.length,
