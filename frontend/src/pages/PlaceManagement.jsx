@@ -3,8 +3,10 @@ import { toast } from "react-toastify";
 import { FiMapPin, FiPlus, FiArrowUp, FiArrowDown, FiTrash2, FiEdit2, FiCheck, FiX } from "react-icons/fi";
 import PageHeader from "../components/PageHeader";
 import { getPlaces, createPlace, updatePlace, deletePlace, reorderPlaces } from "../services/placeService";
+import { useLanguage } from "../context/LanguageContext";
 
 function PlaceManagement() {
+  const { t } = useLanguage();
   const [places, setPlaces]       = useState([]);
   const [loading, setLoading]     = useState(true);
   const [saving, setSaving]       = useState(false);
@@ -138,14 +140,14 @@ function PlaceManagement() {
   return (
     <div className="w-full max-w-xl mx-auto px-0 sm:px-4 py-4 sm:py-6 pb-10">
       <PageHeader
-        title="Manage Places"
-        subtitle="Add places and set the order in which your father visits them for daily collection."
+        title={t("places.title")}
+        subtitle={t("places.subtitle")}
       />
 
       {/* Add new place */}
       <div className="bg-[#182238] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl mb-5">
         <label className="block text-sm font-medium text-slate-300 mb-2">
-          Add New Place
+          {t("places.add_place")}
         </label>
         <div className="flex gap-2 sm:gap-3">
           <input
@@ -153,7 +155,7 @@ function PlaceManagement() {
             value={newName}
             onChange={(e) => setNewName(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleAdd()}
-            placeholder="Place name…"
+            placeholder={t("places.search_placeholder")}
             className="min-w-0 flex-1 bg-[#0f172a] border border-slate-700/80 rounded-xl px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base text-white placeholder:text-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
           />
           <button
@@ -162,7 +164,7 @@ function PlaceManagement() {
             className="shrink-0 flex items-center gap-1.5 sm:gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed rounded-xl px-3.5 sm:px-5 py-2.5 sm:py-3 font-semibold text-sm sm:text-base text-white transition-all active:scale-95"
           >
             <FiPlus size={17} />
-            <span>{adding ? "Adding…" : "Add"}</span>
+            <span>{adding ? t("common.loading") : t("places.save")}</span>
           </button>
         </div>
       </div>
@@ -172,10 +174,10 @@ function PlaceManagement() {
         <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-slate-800 flex items-center gap-2">
           <FiMapPin size={16} className="text-emerald-400 shrink-0" />
           <span className="text-sm font-semibold text-slate-200 truncate">
-            Collection Route Order
+            {t("places.priority")}
           </span>
           <span className="ml-auto text-xs text-slate-400 shrink-0">
-            {places.length} place{places.length !== 1 ? "s" : ""}
+            {places.length} {t("collection_sheet.places_count")}
           </span>
         </div>
 

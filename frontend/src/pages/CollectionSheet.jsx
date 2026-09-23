@@ -1,9 +1,11 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
+import { Link } from "react-router-dom";
 import { createPortal } from "react-dom";
 import { getCustomers } from "../services/customerService";
 import { getPlaces } from "../services/placeService";
 import PageHeader from "../components/PageHeader";
-import { FiPrinter, FiRefreshCw, FiCalendar, FiUsers, FiMapPin } from "react-icons/fi";
+import { FiPrinter, FiRefreshCw, FiCalendar, FiUsers, FiMapPin, FiCheckSquare } from "react-icons/fi";
+import { useLanguage } from "../context/LanguageContext";
 import logoWatermark from "../assets/Vel finance logo white.png";
 
 // ─── Date Utilities ────────────────────────────────────────────────────────
@@ -164,9 +166,10 @@ function PrintRow({ item }) {
 // ─── CollectionSheet component ───────────────────────────────────────────────
 
 function CollectionSheet() {
+  const { t } = useLanguage();
   const today = toInputDate(new Date());
   const [selectedDate, setSelectedDate] = useState(today);
-  const [customers, setCustomers]       = useState([]);
+  const [rawCustomers, setRawCustomers] = useState([]);
   const [places, setPlaces]             = useState([]);
   const [loading, setLoading]           = useState(true);
   const [error, setError]               = useState(null);
@@ -180,19 +183,7 @@ function CollectionSheet() {
         getPlaces(),
       ]);
 
-      // Active filter: loan_given === true, balance > 0, and not closed
-      const active = allCustomers.filter(
-        (c) => c.loan_given && Number(c.balance) > 0 && !c.is_closed
-      );
-
-      console.log("[CollectionSheet] Data loaded", {
-        totalFromAPI:  allCustomers.length,
-        totalActive:   active.length,
-        totalPlaces:   allPlaces.length,
-        rowsPerHalf:   ROWS_PER_HALF,
-      });
-
-      setCustomers(active);
+      setRawCustomers(allCustomers);
       setPlaces(allPlaces);
     } catch (err) {
       console.error("[CollectionSheet] Error:", err);
@@ -203,6 +194,19 @@ function CollectionSheet() {
   }
 
   useEffect(() => { loadData(); }, []);
+
+  // Filter active customers for selected collection date:
+  // 1. loan_given === true
+  // 2. balance > 0
+  // 3. not closed
+  // 4. loan_date must be BEFORE selectedDate (installment collection begins the day AFTER loan disbursement)
+  const customers = useMemo(() => {
+    return rawCustomers.filter((c) => {
+      if (!c.loan_given || c.is_closed || Number(c.balance) <= 0) return false;
+      if (c.loan_date && c.loan_date >= selectedDate) return false;
+      return true;
+    });
+  }, [rawCustomers, selectedDate]);
 
   // Build the row stream and paginate
   const rowStream = buildRowStream(places, customers);
@@ -239,16 +243,25 @@ function CollectionSheet() {
       {/* SCREEN UI */}
       <div className="no-print max-w-2xl mx-auto px-5 py-6 pb-10">
         <PageHeader
-          title="Collection Sheet"
-          subtitle="Generate a printable daily collection worksheet grouped by collection route."
+          title={t("collection_sheet.title")}
+          subtitle={t("collection_sheet.subtitle")}
         />
 
         <div className="bg-[#182238] border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
 
+          {/* Quick Entry Link */}
+          <Link
+            to="/daily-collection"
+            className="w-full flex items-center justify-center gap-2 bg-emerald-600/20 hover:bg-emerald-600/30 active:scale-[0.98] rounded-xl py-3 px-4 font-bold text-emerald-400 border border-emerald-500/40 transition-all text-sm shadow-md"
+          >
+            <FiCheckSquare size={17} />
+            <span>{t("collection_sheet.quick_entry_mode")}</span>
+          </Link>
+
           <div>
             <label className="flex items-center gap-2 text-sm font-medium text-slate-300 mb-2">
               <FiCalendar size={15} />
-              Collection Date
+              {t("collection_sheet.date")}
             </label>
             <input
               type="date"
@@ -264,16 +277,16 @@ function CollectionSheet() {
                 <FiUsers size={15} />
                 <span>
                   <span className="text-emerald-400 font-semibold">{customers.length}</span>{" "}
-                  active customers &middot;{" "}
+                  {t("collection_sheet.total_active")} &middot;{" "}
                   <span className="text-emerald-400 font-semibold">{pages.length}</span>{" "}
-                  page{pages.length !== 1 ? "s" : ""}
+                  {t("collection_sheet.page")}
                 </span>
               </div>
               {places.length > 0 && (
                 <div className="flex items-center gap-2 text-sm text-slate-400">
                   <FiMapPin size={15} />
                   <span>
-                    <span className="text-sky-400 font-semibold">{places.length}</span> place{places.length !== 1 ? "s" : ""}
+                    <span className="text-sky-400 font-semibold">{places.length}</span> {t("collection_sheet.places_count")}
                     {unassignedCount > 0 && (
                       <span className="text-amber-400"> &middot; {unassignedCount} unassigned</span>
                     )}
@@ -286,7 +299,7 @@ function CollectionSheet() {
           {loading && (
             <div className="flex items-center gap-3 text-slate-400 text-sm py-2">
               <div className="w-5 h-5 border-2 border-emerald-500 border-t-transparent rounded-full animate-spin" />
-              Loading collection data…
+              {t("collection_sheet.loading")}
             </div>
           )}
 
@@ -311,7 +324,7 @@ function CollectionSheet() {
             className="w-full flex items-center justify-center gap-2 bg-emerald-600 hover:bg-emerald-500 disabled:bg-slate-700 disabled:text-slate-500 disabled:cursor-not-allowed active:scale-[0.98] rounded-xl py-3.5 font-semibold text-white shadow-lg shadow-emerald-950/40 transition-all"
           >
             <FiPrinter size={18} />
-            Print Collection Sheet
+            {t("collection_sheet.print")}
           </button>
         </div>
       </div>

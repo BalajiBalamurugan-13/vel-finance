@@ -3,6 +3,7 @@ import { Routes, Route } from "react-router-dom";
 import MainLayout from "./layouts/MainLayout";
 
 import Dashboard from "./pages/Dashboard";
+import DailyCollection from "./pages/DailyCollection";
 import ViewCustomer from "./pages/ViewCustomer";
 import AddCustomer from "./pages/AddCustomer";
 import AddExpense from "./pages/AddExpense";
@@ -16,6 +17,7 @@ function App() {
     <MainLayout>
       <Routes>
         <Route path="/" element={<Dashboard />} />
+        <Route path="/daily-collection" element={<DailyCollection />} />
         <Route path="/customers" element={<ViewCustomer />} />
         <Route path="/add-customer" element={<AddCustomer />} />
         <Route path="/expenses" element={<AddExpense />} />

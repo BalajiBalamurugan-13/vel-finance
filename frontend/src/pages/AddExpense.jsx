@@ -1,8 +1,10 @@
 import { useState } from "react";
 import { toast } from "react-toastify";
 import { addExpense } from "../services/expenseService";
+import { useLanguage } from "../context/LanguageContext";
 
 function AddExpense() {
+  const { t } = useLanguage();
   const inputStyles = `
     w-full
     rounded-xl
@@ -22,19 +24,17 @@ function AddExpense() {
     focus:border-transparent
     `;
 
-    const labelStyles =
-      "block text-sm font-medium text-slate-300 mb-2";
+  const labelStyles = "block text-sm font-medium text-slate-300 mb-2";
   const today = new Date().toLocaleDateString("en-CA");
   const [formData, setFormData] = useState({
-      amount: "",
-      note: "",
-      date: today
+    amount: "",
+    note: "",
+    date: today,
   });
   const [errors, setErrors] = useState({});
 
   function handleChange(e) {
     const { name, value } = e.target;
-
     setFormData((prev) => ({
       ...prev,
       [name]: value,
@@ -88,24 +88,19 @@ function AddExpense() {
   return (
     <div className="max-w-2xl mx-auto px-5 py-6 pb-10">
       <div className="mb-8">
-          <h1 className="text-3xl font-bold text-white">
-              Add Expense
-          </h1>
+        <h1 className="text-3xl font-bold text-white">
+          {t("expenses.title")}
+        </h1>
 
-          <p className="text-slate-400 mt-2 text-sm">
-              Record business expenses
-          </p>
+        <p className="text-slate-400 mt-2 text-sm">
+          {t("expenses.subtitle")}
+        </p>
       </div>
-      <div className="
-                bg-[#182238]
-                border
-                border-slate-800
-                rounded-2xl
-                p-6
-                shadow-xl
-                space-y-6">
+
+      <div className="bg-[#182238] border border-slate-800 rounded-2xl p-6 shadow-xl space-y-6">
+        <div>
           <label className={labelStyles}>
-              Expense Date <span className="text-rose-400">*</span>
+            {t("expenses.expense_date")} <span className="text-rose-400">*</span>
           </label>
 
           <input
@@ -114,59 +109,59 @@ function AddExpense() {
             onChange={(e) =>
               setFormData({
                 ...formData,
-                date: e.target.value
+                date: e.target.value,
               })
             }
             className={`${inputStyles} color-scheme-dark`}
           />
-        
-      <div className="space-y-6">
+        </div>
 
-        <div>
+        <div className="space-y-6">
+          <div>
             <label className={labelStyles}>
-                Amount <span className="text-rose-400">*</span>
+              {t("expenses.expense_amount")} <span className="text-rose-400">*</span>
             </label>
 
             <input
-                type="number"
-                inputMode="numeric"
-                onWheel={(e) => e.target.blur()}
-                name="amount"
-                placeholder="Enter expense amount"
-                value={formData.amount}
-                onChange={handleChange}
-                className={inputStyles}
+              type="number"
+              inputMode="numeric"
+              onWheel={(e) => e.target.blur()}
+              name="amount"
+              placeholder={t("expenses.expense_amount")}
+              value={formData.amount}
+              onChange={handleChange}
+              className={inputStyles}
             />
             {errors.amount && (
               <p className="mt-2 text-xs font-medium text-rose-400">
                 {errors.amount}
               </p>
             )}
-        </div>
+          </div>
 
-        <div>
-          <label className={labelStyles}>
-              Expense Note <span className="text-rose-400">*</span>
-          </label>
+          <div>
+            <label className={labelStyles}>
+              {t("expenses.expense_note")} <span className="text-rose-400">*</span>
+            </label>
 
-          <textarea
+            <textarea
               rows={3}
               name="note"
-              placeholder="Enter expense description"
+              placeholder={t("expenses.expense_note")}
               value={formData.note}
               onChange={handleChange}
               className={`${inputStyles} resize-none`}
-          />
-          {errors.note && (
-            <p className="mt-2 text-xs font-medium text-rose-400">
-              {errors.note}
-            </p>
-          )}
-      </div>
+            />
+            {errors.note && (
+              <p className="mt-2 text-xs font-medium text-rose-400">
+                {errors.note}
+              </p>
+            )}
+          </div>
 
-        <button
-          onClick={handleSubmit}
-          className="
+          <button
+            onClick={handleSubmit}
+            className="
               w-full
               bg-rose-600
               hover:bg-rose-500
@@ -179,11 +174,11 @@ function AddExpense() {
               text-white
               font-semibold
               tracking-wide
-          "
-      >
-          Add Expense
-      </button>
-    </div>
+            "
+          >
+            {t("expenses.add_btn")}
+          </button>
+        </div>
       </div>
     </div>
   );

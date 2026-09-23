@@ -1,4 +1,8 @@
+import { useLanguage } from "../../context/LanguageContext";
+
 function CustomerCard({ customer, onClick }) {
+    const { t } = useLanguage();
+
     return (
         <button
             onClick={onClick}
@@ -21,7 +25,7 @@ function CustomerCard({ customer, onClick }) {
         >
             <div
                 className="grid items-center gap-2 text-sm"
-                style={{ gridTemplateColumns: "40px minmax(90px, 1fr) 1fr 55px" }}
+                style={{ gridTemplateColumns: "40px minmax(90px, 1fr) 1fr 65px" }}
             >
 
                 <div className="text-slate-300 font-medium truncate">
@@ -43,7 +47,7 @@ function CustomerCard({ customer, onClick }) {
                 </div>
 
                 <div
-                    className={`text-xs font-semibold text-right ${
+                    className={`text-xs font-semibold text-right truncate ${
                         customer.is_closed
                             ? "text-slate-400"
                             : !customer.loan_given
@@ -54,12 +58,12 @@ function CustomerCard({ customer, onClick }) {
                     }`}
                 >
                     {customer.is_closed
-                        ? "Closed"
+                        ? t("customers.closed")
                         : !customer.loan_given
-                        ? "Pending"
+                        ? t("customers.pending")
                         : (Number(customer.balance) <= 0 || customer.ready_to_close)
-                        ? "Completed"
-                        : "Active"}
+                        ? t("customers.completed")
+                        : t("customers.active")}
                 </div>
 
             </div>

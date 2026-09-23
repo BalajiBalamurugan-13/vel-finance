@@ -11,6 +11,7 @@ import {
     reopenLoan
 } from "../../services/customerService";
 import { getPlaces } from "../../services/placeService";
+import { useLanguage } from "../../context/LanguageContext";
 import logoWatermark from "../../assets/Vel finance logo white.png";
 
 
@@ -19,8 +20,13 @@ function CustomerProfileDrawer({
     onClose,
     customer,
     refreshCustomer,
-    refreshCustomers
+    refreshCustomers,
+    hasPrevCustomer,
+    hasNextCustomer,
+    onPrevCustomer,
+    onNextCustomer
 })  {
+    const { t } = useLanguage();
     const [amount, setAmount] = useState("");
     const [paymentDate, setPaymentDate] = useState(
         new Date().toISOString().split("T")[0]
@@ -41,7 +47,9 @@ function CustomerProfileDrawer({
         phone: "",
         address: "",
         due_date: "",
-        place_id: ""
+        place_id: "",
+        loan_amount: "",
+        loan_date: ""
     });
 
     useEffect(() => {
@@ -64,7 +72,9 @@ function CustomerProfileDrawer({
                 phone: customer.phone || "",
                 address: customer.address || "",
                 due_date: customer.due_date || "",
-                place_id: customer.place_id ?? ""
+                place_id: customer.place_id ?? "",
+                loan_amount: customer.loan_amount ?? "",
+                loan_date: customer.loan_date || ""
             });
 
         }
@@ -261,13 +271,17 @@ function CustomerProfileDrawer({
 
             // Build explicit payload so place_id (even null) is sent to backend
             const updatePayload = {
-                name:     editForm.name,
-                phone:    editForm.phone,
-                address:  editForm.address,
-                due_date: editForm.due_date || undefined,
-                place_id: editForm.place_id !== "" && editForm.place_id !== null && editForm.place_id !== undefined
+                name:        editForm.name,
+                phone:       editForm.phone,
+                address:     editForm.address,
+                due_date:    editForm.due_date || undefined,
+                place_id:    editForm.place_id !== "" && editForm.place_id !== null && editForm.place_id !== undefined
                     ? Number(editForm.place_id)
                     : null,
+                loan_amount: editForm.loan_amount !== "" && editForm.loan_amount !== null && editForm.loan_amount !== undefined
+                    ? Number(editForm.loan_amount)
+                    : undefined,
+                loan_date:   editForm.loan_date || undefined,
             };
             await updateCustomer(
                 customer.customer_id,
@@ -337,7 +351,30 @@ function CustomerProfileDrawer({
 
             <div className="relative z-10 space-y-4">
 
-   
+            {/* Next / Previous Customer Navigation Bar */}
+            {(hasPrevCustomer || hasNextCustomer) && (
+                <div className="flex items-center justify-between pb-3 border-b border-slate-700/60 text-xs">
+                    <button
+                        type="button"
+                        disabled={!hasPrevCustomer}
+                        onClick={onPrevCustomer}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 font-semibold transition"
+                    >
+                        <span>{t("customers.prev_customer")}</span>
+                    </button>
+                    <span className="text-slate-400 font-bold text-xs bg-slate-900 px-2 py-1 rounded">
+                        #{customer.customer_id}
+                    </span>
+                    <button
+                        type="button"
+                        disabled={!hasNextCustomer}
+                        onClick={onNextCustomer}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 disabled:opacity-30 disabled:cursor-not-allowed text-slate-300 font-semibold transition"
+                    >
+                        <span>{t("customers.next_customer")}</span>
+                    </button>
+                </div>
+            )}
 
     {isEditing ? (
 
@@ -398,8 +435,73 @@ function CustomerProfileDrawer({
             </div>
 
             <div>
+                <label className="text-sm text-slate-300">
+                    {t("customers.loan_amount")} (₹)
+                </label>
+                <input
+                    type="number"
+                    value={editForm.loan_amount}
+                    onChange={(e) => {
+                        setEditForm({
+                            ...editForm,
+                            loan_amount: e.target.value
+                        });
+                    }}
+                    className="w-full mt-1 bg-[#0f172a] border border-slate-700/80 rounded-xl px-3.5 py-3 text-white focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all font-bold"
+                    placeholder="10000"
+                />
+                {customer.type === "DL" && Number(editForm.loan_amount) > 0 && (
+                    <div className="mt-2 text-xs bg-slate-900/90 border border-slate-700/70 rounded-xl p-3 space-y-1.5 shadow-inner">
+                        <div className="flex justify-between text-slate-400">
+                            <span>தினசரி தவணை:</span>
+                            <strong className="text-blue-400 font-semibold">₹{Math.round(Number(editForm.loan_amount) / 100)}/நாள்</strong>
+                        </div>
+                        <div className="flex justify-between text-slate-400">
+                            <span>கையில் கொடுப்பது:</span>
+                            <strong className="text-emerald-400 font-semibold">
+                                ₹{Number(editForm.loan_amount) - Math.round((Number(editForm.loan_amount) * 12) / 100 + 100)}
+                            </strong>
+                        </div>
+                        <div className="flex justify-between text-slate-400">
+                            <span>புதிய நிலுவை:</span>
+                            <strong className="text-amber-400 font-semibold">
+                                ₹{Math.max(0, Number(editForm.loan_amount) - (customer.total_paid || 0))}
+                            </strong>
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            <div>
+                <label className="text-sm text-slate-300">
+                    {t("customers.loan_date")}
+                </label>
+                <input
+                    type="date"
+                    value={editForm.loan_date}
+                    onChange={(e) => {
+                        const newDate = e.target.value;
+                        let newDueDate = editForm.due_date;
+                        if (customer.type === "DL" && newDate) {
+                            try {
+                                const d = new Date(newDate);
+                                d.setDate(d.getDate() + 100);
+                                newDueDate = d.toISOString().split("T")[0];
+                            } catch {}
+                        }
+                        setEditForm({
+                            ...editForm,
+                            loan_date: newDate,
+                            due_date: newDueDate
+                        });
+                    }}
+                    className="w-full mt-1 bg-[#0f172a] border border-slate-700/80 rounded-xl px-3.5 py-3 text-white color-scheme-dark focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent transition-all"
+                />
+            </div>
+
+            <div>
                 <label className="text-sm text-slate-400">
-                    Due Date
+                    {t("customers.due_date")}
                 </label>
 
                 <input
@@ -416,7 +518,7 @@ function CustomerProfileDrawer({
             </div>
 
             <div>
-                <label className="text-sm text-slate-400">Place</label>
+                <label className="text-sm text-slate-400">{t("customers.place")}</label>
                 <select
                     value={editForm.place_id ?? ""}
                     onChange={(e) => setEditForm({ ...editForm, place_id: e.target.value ? Number(e.target.value) : "" })}
@@ -434,23 +536,23 @@ function CustomerProfileDrawer({
         <div className="space-y-4">
 
             <div className="flex justify-between items-center">
-                <span className="text-slate-400">Name</span>
+                <span className="text-slate-400">{t("customers.name")}</span>
                 <span className="font-semibold text-white text-lg">{customer.name}</span>
             </div>
 
             <div className="flex justify-between items-center">
-                <span className="text-slate-400">Customer ID</span>
+                <span className="text-slate-400">{t("customers.id")}</span>
                 <span className="font-semibold text-white text-lg">{customer.customer_id}</span>
             </div>
 
             <div className="flex justify-between items-center">
-                <span className="text-slate-400">Phone</span>
+                <span className="text-slate-400">{t("customers.phone")}</span>
                 <span className="font-semibold text-white text-lg">{customer.phone || "-"}</span>
             </div>
 
             <div className="flex justify-between items-start gap-6">
                 <span className="text-slate-400 shrink-0">
-                    Address
+                    {t("customers.address")}
                 </span>
 
                 <span className="text-right text-slate-200 break-words max-w-[65%]">
@@ -460,18 +562,18 @@ function CustomerProfileDrawer({
 
             {customer.loan_date && (
                 <div className="flex justify-between items-center">
-                    <span className="text-slate-400">Loan Date</span>
+                    <span className="text-slate-400">{t("customers.loan_date")}</span>
                     <span className="text-slate-200">{customer.loan_date}</span>
                 </div>
             )}
 
             <div className="flex justify-between items-center">
-                <span className="text-slate-400">Due Date</span>
+                <span className="text-slate-400">{t("customers.due_date")}</span>
                 <span>{customer.due_date || "-"}</span>
             </div>
 
             <div className="flex justify-between items-center">
-                <span className="text-slate-400">Place</span>
+                <span className="text-slate-400">{t("customers.place")}</span>
                 <span className="font-medium text-slate-200">{customer.place_name || "Not Assigned"}</span>
             </div>
 
@@ -486,7 +588,7 @@ function CustomerProfileDrawer({
 
             <div className="bg-[#111827] border border-slate-800 rounded-xl py-3 px-4 text-center">
                 <p className="text-xs text-slate-400 font-medium">
-                    Loan
+                    {t("customers.loan_amount")}
                 </p>
 
                 <p className="text-lg lg:text-xl font-bold text-white mt-1">
@@ -496,7 +598,7 @@ function CustomerProfileDrawer({
 
             <div className="bg-[#111827] border border-slate-800 rounded-xl py-3 px-4 text-center">
                 <p className="text-xs text-slate-400 font-medium">
-                    Paid
+                    {t("customers.total_paid")}
                 </p>
 
                 <p className="text-lg lg:text-xl font-bold text-emerald-400 mt-1">
@@ -506,7 +608,7 @@ function CustomerProfileDrawer({
 
             <div className="bg-[#111827] border border-slate-800 rounded-xl py-3 px-4 text-center">
                 <p className="text-xs text-slate-400 font-medium">
-                    Balance
+                    {t("customers.balance")}
                 </p>
 
                 <p className="text-lg lg:text-xl font-bold text-amber-400 mt-1">
@@ -542,14 +644,14 @@ function CustomerProfileDrawer({
                 `}
             >
                 {customer.is_closed
-                    ? "🔒 Loan Closed"
+                    ? `🔒 ${t("customers.closed")}`
                     : !customer.loan_given
-                    ? "🟡 Loan Not Activated"
+                    ? `🟡 ${t("customers.pending")}`
                     : customer.status === "OVERDUE"
                     ? `🔴 ${customer.overdue_days} Days Overdue`
                     : (customer.balance <= 0 || customer.ready_to_close)
-                    ? "🎉 Loan Completed"
-                    : "🟢 Active Loan"}
+                    ? `🎉 ${t("customers.completed")}`
+                    : `🟢 ${t("customers.active")}`}
             </span>
 
         </div>
@@ -566,7 +668,7 @@ function CustomerProfileDrawer({
         ">
 
             <h3 className="text-lg font-semibold text-white">
-                💸 Quick Payment
+                💸 {t("customers.collect_payment")}
             </h3>
 
             {/* Amount */}
@@ -574,7 +676,7 @@ function CustomerProfileDrawer({
             <div>
 
                 <label className="block text-slate-300 text-sm font-medium mb-2">
-                    Amount
+                    {t("dashboard.amount")}
                 </label>
 
                 {/* Quick Amount Buttons */}
@@ -601,7 +703,7 @@ function CustomerProfileDrawer({
                     type="number"
                     value={amount}
                     onChange={(e) => setAmount(e.target.value)}
-                    placeholder="Enter amount"
+                    placeholder={t("customers.enter_amount")}
                     className="
                         w-full
                         bg-[#0f172a]
@@ -627,7 +729,7 @@ function CustomerProfileDrawer({
             <div>
 
                 <label className="block text-slate-300 text-sm font-medium mb-2">
-                    Collection Date
+                    {t("customers.payment_date")}
                 </label>
 
                 <input
@@ -672,7 +774,7 @@ function CustomerProfileDrawer({
                     transition-all
                 "
             >
-                Collect Payment
+                {t("customers.submit_payment")}
             </button>
 
         </div>
@@ -688,13 +790,13 @@ function CustomerProfileDrawer({
         ">
 
             <h3 className="text-lg font-semibold text-white mb-3">
-                📊 Loan Progress
+                📊 {t("customers.loan_progress")}
             </h3>
 
             <div className="flex justify-between text-sm mb-2">
 
                 <span className="text-slate-300 font-medium">
-                    ₹{totalPaid} Paid
+                    ₹{totalPaid} {t("customers.paid")}
                 </span>
 
                 <span className="text-emerald-400 font-semibold">
@@ -717,11 +819,11 @@ function CustomerProfileDrawer({
             <div className="flex justify-between mt-3 text-xs text-slate-400">
 
                 <span>
-                    Loan ₹{loanAmount}
+                    {t("customers.loan_amount")} ₹{loanAmount}
                 </span>
 
                 <span>
-                    Balance ₹{balance}
+                    {t("customers.balance")} ₹{balance}
                 </span>
 
             </div>
@@ -771,13 +873,13 @@ function CustomerProfileDrawer({
         ">
 
             <h3 className="text-lg font-semibold text-white mb-4">
-                💳 Payment History
+                💳 {t("customers.recent_payments")}
             </h3>
 
             {customer.transactions.length === 0 ? (
 
                 <div className="text-slate-400 text-sm">
-                    No payments yet.
+                    {t("customers.no_payments")}
                 </div>
 
             ) : (
@@ -837,7 +939,7 @@ function CustomerProfileDrawer({
                             transition-all
                         "
                     >
-                        🔓 Reopen Loan
+                        🔓 {t("customers.reopen_loan")}
                     </button>
 
                     <button
@@ -858,7 +960,7 @@ function CustomerProfileDrawer({
                             text-xs
                         "
                     >
-                        🗑 Permanently Delete Customer
+                        🗑 {t("customers.delete_customer")}
                     </button>
                 </>
 
@@ -881,7 +983,7 @@ function CustomerProfileDrawer({
                             transition-all
                         "
                     >
-                        ✅ Close Loan
+                        ✅ {t("customers.close_loan")}
                     </button>
 
                     <button
@@ -902,7 +1004,7 @@ function CustomerProfileDrawer({
                             text-xs
                         "
                     >
-                        🗑 Delete Customer
+                        🗑 {t("customers.delete_customer")}
                     </button>
                 </>
 
@@ -924,7 +1026,7 @@ function CustomerProfileDrawer({
                         transition-all
                     "
                 >
-                    🗑 Delete Customer
+                    🗑 {t("customers.delete_customer")}
                 </button>
 
             )}
@@ -951,7 +1053,10 @@ function CustomerProfileDrawer({
                             name: customer.name || "",
                             phone: customer.phone || "",
                             address: customer.address || "",
-                            due_date: customer.due_date || ""
+                            due_date: customer.due_date || "",
+                            place_id: customer.place_id ?? "",
+                            loan_amount: customer.loan_amount ?? "",
+                            loan_date: customer.loan_date || ""
                         });
                     }}
                     className="flex-1 bg-slate-800 hover:bg-slate-700 py-3 rounded-xl text-slate-300 font-semibold active:scale-[0.98] transition-all"

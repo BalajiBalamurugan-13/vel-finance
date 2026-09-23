@@ -1,31 +1,33 @@
 import { useMemo, useState } from "react";
 import DetailDrawer from "../DetailDrawer";
 import ExpenseCard from "../ExpenseCard";
+import { useLanguage } from "../../context/LanguageContext";
 
 function ExpenseDrawer({
     open,
     onClose,
     expenses
 }) {
+    const { t } = useLanguage();
     const today = new Date().toLocaleDateString("en-IN", {
-        weekday: "long",
+        weekday: "short",
         day: "numeric",
-        month: "long",
+        month: "short",
         year: "numeric",
     });
     const [search, setSearch] = useState("");
-    const totalExpense = expenses.reduce(
-        (sum, expense) => sum + expense.amount,
+    const totalExpense = (expenses || []).reduce(
+        (sum, expense) => sum + (expense.amount || 0),
         0
     );
-    const subtitle = `${today} • 🧾 ${expenses.length} Expenses • 💸 ₹${totalExpense}`;
+    const subtitle = `${today} • 🧾 ${(expenses || []).length} ${t("dashboard.expenses")} • 💸 ₹${totalExpense.toLocaleString("en-IN")}`;
 
 
     const filteredExpenses = useMemo(() => {
+        const query = search.toLowerCase().trim();
+        if (!query) return expenses || [];
 
-        const query = search.toLowerCase();
-
-        return expenses.filter((expense) =>
+        return (expenses || []).filter((expense) =>
             (expense.note || "").toLowerCase().includes(query)
         );
 
@@ -35,7 +37,7 @@ function ExpenseDrawer({
         <DetailDrawer
             open={open}
             onClose={onClose}
-            title="Today's Expenses"
+            title={t("expenses.today_expenses")}
             subtitle={subtitle}
             headers={[]}
         >
@@ -68,15 +70,15 @@ function ExpenseDrawer({
                 style={{ gridTemplateColumns: "50px 1fr 85px 70px" }}
             >
                 <div>ID</div>
-                <div>Note</div>
-                <div>Time</div>
-                <div className="text-right">Amount</div>
+                <div>{t("dashboard.note")}</div>
+                <div>{t("dashboard.time")}</div>
+                <div className="text-right">{t("dashboard.amount")}</div>
             </div>
 
             {filteredExpenses.length === 0 ? (
 
                 <div className="text-center text-gray-400 py-10">
-                    No expenses found.
+                    {t("dashboard.no_expenses_yet")}
                 </div>
 
             ) : (
@@ -89,7 +91,6 @@ function ExpenseDrawer({
                     />
 
                 ))
-                
 
             )}
 

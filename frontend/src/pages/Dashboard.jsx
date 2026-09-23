@@ -1,6 +1,9 @@
 import PageHeader from "../components/PageHeader";
 import StatusBanner from "../components/StatusBanner";
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { FiCheckSquare } from "react-icons/fi";
+import { useLanguage } from "../context/LanguageContext";
 import { getDashboard, getTodayCashFlow, getMigrationStatus } from "../services/dashboardService";
 import CollectionDrawer from "../components/Dashboard/CollectionDrawer";
 import DashboardMetrics from "../components/Dashboard/DashboardMetrics";
@@ -13,6 +16,7 @@ import MigrationBanner from "../components/Dashboard/MigrationBanner";
 
 
 function Dashboard() {
+    const { t } = useLanguage();
     const [dashboardData, setDashboardData] = useState(null);
     const [selectedCard, setSelectedCard] = useState(null);
     const [cashFlow, setCashFlow] = useState(null);
@@ -67,10 +71,20 @@ function Dashboard() {
     } 
   return (
     <div>
-      <PageHeader
-        title="Welcome to VEL Finance"
-        subtitle="Finance Management Dashboard"
-      />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <PageHeader
+          title={t("dashboard.title")}
+          subtitle={t("dashboard.subtitle")}
+        />
+
+        <Link
+          to="/daily-collection"
+          className="self-start sm:self-auto flex items-center gap-2 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-bold text-sm shadow-lg shadow-emerald-950/40 transition"
+        >
+          <FiCheckSquare size={18} />
+          <span>{t("dashboard.quick_collection_btn")}</span>
+        </Link>
+      </div>
 
       <StatusBanner status="online" />
 

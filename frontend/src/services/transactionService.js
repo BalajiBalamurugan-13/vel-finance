@@ -26,3 +26,17 @@ export async function getOutstandingDetails() {
     );
     return response.data;
 }
+
+export async function getDailySheet(selectedDate) {
+    const response = await api.get(
+        `/transactions/daily-sheet/${selectedDate}`
+    );
+    return response.data;
+}
+
+export async function deletePayment(transactionId) {
+    const response = await api.delete(
+        `/transactions/delete/${transactionId}`
+    );
+    return response.data;
+}

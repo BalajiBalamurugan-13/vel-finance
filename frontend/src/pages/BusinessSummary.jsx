@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { getBusinessSummary } from "../services/transactionService";
 import OutstandingDrawer from "../components/BusinessSummary/OutstandingDrawer";
+import { useLanguage } from "../context/LanguageContext";
 
 function formatCurrency(value) {
   return new Intl.NumberFormat("en-IN").format(value || 0);
 }
 
 function BusinessSummary() {
+  const { t } = useLanguage();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showOutstandingDrawer, setShowOutstandingDrawer] = useState(false);
@@ -30,56 +32,56 @@ function BusinessSummary() {
     return (
       <div className="flex items-center justify-center py-20">
         <p className="text-slate-400 text-lg">
-          Loading Business Summary...
+          {t("common.loading")}
         </p>
       </div>
     );
   }
 
   const cards = [
-      {
-        title: "Outstanding",
-        icon: "📈",
-        value: `₹${formatCurrency(data.outstanding)}`,
-        border: "border-orange-500/30 hover:border-orange-500/60",
-        valueColor: "text-orange-400",
-        clickable: true,
-        hint: "Tap for breakdown ↗",
-        onClick: () => setShowOutstandingDrawer(true),
-      },
-      {
-        title: "Total Customers",
-        icon: "👥",
-        value: data.total_customers,
-        border: "border-blue-500/20",
-        valueColor: "text-blue-400",
-      },
-      {
-        title: "Expected Profit",
-        icon: "💰",
-        value: `₹${formatCurrency(data.expected_profit)}`,
-        border: "border-purple-500/20",
-        valueColor: "text-purple-400",
-      },
-      {
-        title: "Active Loans",
-        icon: "🏦",
-        value: data.active_loans,
-        border: "border-slate-500/20",
-        valueColor: "text-slate-200",
-      },
-    ];
+    {
+      title: t("business_summary.total_outstanding"),
+      icon: "📈",
+      value: `₹${formatCurrency(data?.outstanding)}`,
+      border: "border-orange-500/30 hover:border-orange-500/60",
+      valueColor: "text-orange-400",
+      clickable: true,
+      hint: `${t("business_summary.view_details")} ↗`,
+      onClick: () => setShowOutstandingDrawer(true),
+    },
+    {
+      title: t("business_summary.active_customers"),
+      icon: "👥",
+      value: data?.total_customers || 0,
+      border: "border-blue-500/20",
+      valueColor: "text-blue-400",
+    },
+    {
+      title: t("business_summary.expected_profit"),
+      icon: "💰",
+      value: `₹${formatCurrency(data?.expected_profit)}`,
+      border: "border-purple-500/20",
+      valueColor: "text-purple-400",
+    },
+    {
+      title: t("customers.active"),
+      icon: "🏦",
+      value: data?.active_loans || 0,
+      border: "border-slate-500/20",
+      valueColor: "text-slate-200",
+    },
+  ];
 
   return (
     <div className="p-5 space-y-6">
 
       <div>
         <h1 className="text-3xl font-bold text-white">
-          Business Center
+          {t("business_summary.title")}
         </h1>
 
         <p className="text-slate-400 mt-1">
-          Financial overview of your business
+          {t("business_summary.subtitle")}
         </p>
       </div>
 
@@ -111,7 +113,7 @@ function BusinessSummary() {
                 {card.title}
                 {card.clickable && (
                   <span className="text-[10px] text-orange-400/80 bg-orange-500/10 px-1.5 py-0.5 rounded border border-orange-500/20 font-normal">
-                    Details
+                    {t("business_summary.view_details")}
                   </span>
                 )}
               </p>

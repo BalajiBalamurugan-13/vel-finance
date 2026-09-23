@@ -1,4 +1,5 @@
 import MetricCard from "../MetricCard";
+import { useLanguage } from "../../context/LanguageContext";
 
 function DashboardMetrics({
     summary,
@@ -8,32 +9,33 @@ function DashboardMetrics({
     onExpenseClick,
     onNetClick,
 }) {
+  const { t } = useLanguage();
+
   return (
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mt-6">
       <MetricCard
-          title="Available Cash"
-          value={`₹${Number(cash.cash_balance).toLocaleString("en-IN")}`}
+          title={t("dashboard.available_cash")}
+          value={`₹${Number(cash?.cash_balance || 0).toLocaleString("en-IN")}`}
           icon="💵"
           onClick={onCashClick}
       />
       <MetricCard
-        title="Collected"
-        value={`₹${Number(summary.total_collected).toLocaleString("en-IN")}`}
+        title={t("dashboard.collected_today")}
+        value={`₹${Number(summary?.total_collected || 0).toLocaleString("en-IN")}`}
         icon="💰"
         onClick={onCollectedClick}
       />
 
       <MetricCard
-        title="Expense"
-        value={`₹${Number(summary.total_expense).toLocaleString("en-IN")}`}
-
+        title={t("dashboard.expense_today")}
+        value={`₹${Number(summary?.total_expense || 0).toLocaleString("en-IN")}`}
         icon="💸"
         onClick={onExpenseClick}
       />
 
       <MetricCard
-        title="Net"
-        value={`₹${Number(summary.net_amount).toLocaleString("en-IN")}`}
+        title={t("dashboard.net_today")}
+        value={`₹${Number(summary?.net_amount || 0).toLocaleString("en-IN")}`}
         icon="📊"
         onClick={onNetClick}
       />

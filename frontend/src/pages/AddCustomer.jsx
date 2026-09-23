@@ -4,8 +4,10 @@ import { addCustomer } from "../services/customerService";
 import { getPlaces } from "../services/placeService";
 import { toast } from "react-toastify";
 import { Loader2 } from "lucide-react";
+import { useLanguage } from "../context/LanguageContext";
 
 function AddCustomer() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const inputStyles = `
   w-full
@@ -40,7 +42,7 @@ function AddCustomer() {
     loan_amount: "",
     loan_date: "",
     due_date: "",
-    type: "Furniture",
+    type: "DL",
     loan_given: true,
   });
 
@@ -65,7 +67,7 @@ function AddCustomer() {
 
     if (type === "DL") {
       if (amount > 0) {
-        interest = Math.round((amount * 12) / 100 + 50);
+        interest = Math.round((amount * 12) / 100 + 100);
       }
 
       dailyCollection = amount > 0 ? amount / 100 : 0;
@@ -234,7 +236,7 @@ function AddCustomer() {
 
   return (
     <div className="max-w-2xl mx-auto px-5 py-6 pb-10">
-      <h1 className="text-2xl font-bold mb-6">Add Customer</h1>
+      <h1 className="text-2xl font-bold mb-6">{t("add_customer.title")}</h1>
 
       <div className="
 bg-[#182238]
@@ -251,8 +253,8 @@ shadow-xl
           onChange={handleChange}
           className={inputStyles}
         >
-          <option value="Furniture">Furniture</option>
-          <option value="DL">DL</option>
+          <option value="DL">DL ({t("add_customer.type_dl")})</option>
+          <option value="Furniture">Furniture ({t("add_customer.type_furniture")})</option>
         </select>
 
         {/* Enterprise Loan Active Toggle */}
@@ -332,7 +334,7 @@ shadow-xl
 
         <div>
           <label className={labelStyles}>
-            Customer ID <span className="text-red-400">*</span>
+            {t("add_customer.customer_id")} <span className="text-red-400">*</span>
           </label>
 
           <input
@@ -340,7 +342,7 @@ shadow-xl
             onWheel={(e) => e.target.blur()}
             inputMode="numeric"
             name="customer_id"
-            placeholder="Enter customer ID"
+            placeholder={t("add_customer.customer_id")}
             value={formData.customer_id}
             onChange={handleChange}
             className={inputStyles}
@@ -352,13 +354,13 @@ shadow-xl
 
         <div>
           <label className={labelStyles}>
-            Customer Name <span className="text-red-400">*</span>
+            {t("add_customer.name")} <span className="text-red-400">*</span>
           </label>
 
           <input
             type="text"
             name="name"
-            placeholder="Enter customer name"
+            placeholder={t("add_customer.name")}
             value={formData.name}
             onChange={handleChange}
             className={inputStyles}
@@ -370,7 +372,7 @@ shadow-xl
 
         <div>
           <label className={labelStyles}>
-            Phone Number <span className="text-red-400">*</span>
+            {t("add_customer.phone")} <span className="text-red-400">*</span>
           </label>
 
           <input
@@ -378,7 +380,7 @@ shadow-xl
             inputMode="numeric"
             maxLength={10}
             name="phone"
-            placeholder="Enter phone number"
+            placeholder={t("add_customer.phone")}
             value={formData.phone}
             onChange={(e) => {
               const value = e.target.value.replace(/\D/g, "");
@@ -395,12 +397,12 @@ shadow-xl
         </div>
 
         <div>
-          <label className={labelStyles}>Address</label>
+          <label className={labelStyles}>{t("add_customer.address")}</label>
 
           <textarea
-            rows={4}
+            rows={3}
             name="address"
-            placeholder="Enter address"
+            placeholder={t("add_customer.address")}
             value={formData.address}
             onChange={handleChange}
             className={inputStyles}
@@ -410,7 +412,7 @@ shadow-xl
         {/* Place dropdown */}
         <div>
           <label className={labelStyles}>
-            Place <span className="text-red-400">*</span>
+            {t("add_customer.place")} <span className="text-red-400">*</span>
           </label>
 
           <select
@@ -421,7 +423,7 @@ shadow-xl
             className={inputStyles}
           >
             <option value="">
-              {placesLoading ? "Loading places…" : "Select a place"}
+              {placesLoading ? t("common.loading") : t("add_customer.select_place")}
             </option>
             {places.map((p) => (
               <option key={p.id} value={p.id}>
@@ -552,11 +554,7 @@ shadow-xl
         {formData.loan_given && (
           <div>
             <label className={labelStyles}>
-              {formData.type === "DL" ? (
-                <>Loan Date <span className="text-rose-400">*</span></>
-              ) : (
-                <>கடன் கொடுக்கப்பட்ட தேதி <span className="text-rose-400">*</span></>
-              )}
+              {t("add_customer.loan_date")} <span className="text-rose-400">*</span>
             </label>
 
             <input
@@ -584,27 +582,27 @@ shadow-xl
             shadow-md
             space-y-5
           ">
-            <h3 className="text-xl font-bold text-white">Loan Summary</h3>
+            <h3 className="text-xl font-bold text-white">{t("customers.loan_progress")}</h3>
             <div className="border-t border-slate-700"></div>
 
             <div className="flex items-center justify-between py-2">
-              <span className="text-slate-400">Interest (12% + ₹50)</span>
+              <span className="text-slate-400">{t("add_customer.interest")} (12% + ₹100)</span>
               <span className="text-lg font-bold text-white">₹{loan.interest}</span>
             </div>
 
             <div className="flex items-center justify-between py-2">
-              <span className="text-slate-400">Net Given</span>
+              <span className="text-slate-400">{t("add_customer.net_given")}</span>
               <span className="text-lg font-bold text-emerald-400">₹{loan.netGiven}</span>
             </div>
 
             <div className="flex items-center justify-between py-2">
-              <span className="text-slate-400">Daily Collection</span>
+              <span className="text-slate-400">{t("add_customer.daily_collection")}</span>
               <span className="text-lg font-bold text-blue-400">₹{loan.dailyCollection}/day</span>
             </div>
 
             {formData.loan_given && (
               <div className="flex items-center justify-between border-t border-slate-700 pt-5 mt-2">
-                <span className="text-slate-400">Due Date</span>
+                <span className="text-slate-400">{t("add_customer.due_date")}</span>
                 <span className="text-lg font-semibold text-white">{loan.dueDate || "-"}</span>
               </div>
             )}
@@ -613,7 +611,7 @@ shadow-xl
           formData.loan_given && (
             <div>
               <label className={labelStyles}>
-                கடன் முடிவு தேதி <span className="text-rose-400">*</span>
+                {t("add_customer.due_date")} <span className="text-rose-400">*</span>
               </label>
 
               <input
@@ -643,10 +641,10 @@ shadow-xl
           {loading ? (
             <span className="flex items-center justify-center gap-2">
               <span className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
-              Saving...
+              {t("add_customer.saving")}
             </span>
           ) : (
-            "Save Customer"
+            t("add_customer.submit")
           )}
         </button>
       </div>

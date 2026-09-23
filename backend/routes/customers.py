@@ -52,7 +52,7 @@ def add_customer(data: CustomerCreate):
         return {"error": "Valid phone number is required"}
     # DL Business Rule
     if customer.get("type") == "DL":
-        interest = int((loan_amount * 12 / 100) + 50)
+        interest = int((loan_amount * 12 / 100) + 100)
 
     # Furniture Business Rule
     else:
@@ -187,6 +187,7 @@ def get_customers():
             name,
             address,
             loan_given,
+            loan_date,
             ready_to_close,
             loan_amount,
             type,
@@ -472,6 +473,74 @@ def update_customer(customer_id: int, data: CustomerUpdate):
         if not update_data:
             return {"error": "No fields to update"}
 
+        # Fetch current customer record to detect changes
+        curr_res = (
+            supabase.table("customers")
+            .select("*")
+            .eq("customer_id", customer_id)
+            .execute()
+        )
+        if not curr_res.data:
+            return {"error": "Customer not found"}
+
+        curr = curr_res.data[0]
+        curr_type = curr.get("type") or "DL"
+        curr_loan_given = curr.get("loan_given", True)
+        curr_loan_amount = curr.get("loan_amount") or 0
+        curr_loan_date = curr.get("loan_date")
+
+        new_loan_amount = update_data.get("loan_amount")
+        new_loan_date = update_data.get("loan_date")
+
+        # 1. If loan_amount changed:
+        if new_loan_amount is not None and new_loan_amount != curr_loan_amount:
+            if curr_type == "DL":
+                new_interest = int((new_loan_amount * 12 / 100) + 100)
+                new_net_given = new_loan_amount - new_interest
+                update_data["interest"] = new_interest
+                update_data["net_given"] = new_net_given
+            elif curr_type == "Furniture":
+                curr_interest = curr.get("interest") or 0
+                new_net_given = new_loan_amount - curr_interest
+                update_data["net_given"] = new_net_given
+
+            # Recalculate balance and ready_to_close
+            txns = (
+                supabase.table("transactions")
+                .select("amount_paid")
+                .eq("customer_id", customer_id)
+                .execute()
+            )
+            total_paid = sum(t.get("amount_paid", 0) for t in (txns.data or []))
+            new_balance = new_loan_amount - total_paid
+            update_data["ready_to_close"] = (new_balance <= 0)
+
+        # 2. If loan_date changed for DL and due_date was not explicitly provided:
+        if new_loan_date and new_loan_date != curr_loan_date and curr_type == "DL" and "due_date" not in update_data:
+            try:
+                due_date_obj = datetime.strptime(new_loan_date, "%Y-%m-%d") + timedelta(days=100)
+                update_data["due_date"] = due_date_obj.strftime("%Y-%m-%d")
+            except Exception:
+                pass
+
+        # 3. Synchronize Cashbook if customer loan was already disbursed (loan_given == True)
+        if curr_loan_given:
+            cb_source = "loan" if curr_type == "DL" else "purchase"
+            cb_update = {}
+            if "net_given" in update_data:
+                cb_update["amount"] = update_data["net_given"]
+            if new_loan_date:
+                cb_update["date"] = new_loan_date
+
+            if cb_update:
+                try:
+                    supabase.table("cashbook").update(cb_update).match({
+                        "reference_id": str(customer_id),
+                        "source": cb_source
+                    }).execute()
+                except Exception as cb_err:
+                    print("Cashbook update error on customer edit:", cb_err)
+
         res = (
             supabase.table("customers")
             .update(update_data)
@@ -480,7 +549,7 @@ def update_customer(customer_id: int, data: CustomerUpdate):
         )
 
         if not res.data:
-            return {"error": "Customer not found"}
+            return {"error": "Failed to update customer"}
 
         return {
             "message": "Customer updated successfully",

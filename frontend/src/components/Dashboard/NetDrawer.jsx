@@ -1,24 +1,24 @@
 import DetailDrawer from "../DetailDrawer";
+import { useLanguage } from "../../context/LanguageContext";
 
 function NetDrawer({
     open,
     onClose,
     summary
 }) {
-
-    const net = summary.net_amount;
+    const { t } = useLanguage();
+    const net = summary?.net_amount || 0;
     const today = new Date().toLocaleDateString("en-IN", {
-        weekday: "long",
+        weekday: "short",
         day: "numeric",
-        month: "long",
+        month: "short",
         year: "numeric",
     });
     return (
-
         <DetailDrawer
             open={open}
             onClose={onClose}
-            title="Today's Net Summary"
+            title={t("dashboard.net_today")}
             subtitle={today}
         >
 
@@ -29,11 +29,11 @@ function NetDrawer({
                     <div className="flex justify-between items-center">
 
                         <span className="text-gray-400">
-                            💰 Total Collections
+                            💰 {t("dashboard.collected_today")}
                         </span>
 
                         <span className="text-2xl font-bold text-green-400">
-                            ₹{summary.total_collected}
+                            ₹{(summary?.total_collected || 0).toLocaleString("en-IN")}
                         </span>
 
                     </div>
@@ -45,11 +45,11 @@ function NetDrawer({
                     <div className="flex justify-between items-center">
 
                         <span className="text-gray-400">
-                            💸 Total Expenses
+                            💸 {t("dashboard.expense_today")}
                         </span>
 
                         <span className="text-2xl font-bold text-red-400">
-                            ₹{summary.total_expense}
+                            ₹{(summary?.total_expense || 0).toLocaleString("en-IN")}
                         </span>
 
                     </div>
@@ -72,9 +72,7 @@ function NetDrawer({
                 >
 
                     <p className="text-gray-400 text-lg">
-
-                        {net >= 0 ? "Today's Profit" : "Today's Loss"}
-
+                        {net >= 0 ? t("dashboard.net_today") : "இன்றைய நஷ்டம்"}
                     </p>
 
                     <h1
@@ -89,7 +87,7 @@ function NetDrawer({
                             }
                         `}
                     >
-                        ₹{Math.abs(net)}
+                        ₹{Math.abs(net).toLocaleString("en-IN")}
                     </h1>
 
                     <p
@@ -104,8 +102,8 @@ function NetDrawer({
                         `}
                     >
                         {net >= 0
-                            ? "🟢 Business is in Profit"
-                            : "🔴 Business is in Loss"}
+                            ? "🟢 நிகர வரவு லாபத்தில் உள்ளது"
+                            : "🔴 நிகர வரவு குறைவில் உள்ளது"}
                     </p>
 
                 </div>

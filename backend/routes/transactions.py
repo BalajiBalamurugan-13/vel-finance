@@ -201,27 +201,37 @@ def get_collections_by_date(selected_date: str):
     today = selected_date
 
     try:
-        res = (
-            supabase.table("transactions")
-            .select("""
-                amount_paid,
-                customer_id,
-                created_at,
-                customers(name,address)
-            """)
-            .eq("payment_date", today)
-            .order("created_at", desc=True)
-            .limit(5)
-            .execute()
-        )
+        PAGE_SIZE = 1000
+        all_txns = []
+        page = 0
+        while True:
+            batch = (
+                supabase.table("transactions")
+                .select("""
+                    amount_paid,
+                    customer_id,
+                    created_at,
+                    customers(name,address)
+                """)
+                .eq("payment_date", today)
+                .order("created_at", desc=True)
+                .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+                .execute()
+                .data or []
+            )
+            all_txns.extend(batch)
+            if len(batch) < PAGE_SIZE:
+                break
+            page += 1
 
         collections = []
 
-        for item in res.data or []:
+        for item in all_txns:
+            cust = item.get("customers") or {}
             collections.append({
                 "customer_id": item["customer_id"],
-                "customer_name": item["customers"]["name"],
-                "address": item["customers"]["address"],
+                "customer_name": cust.get("name") or f"Customer #{item['customer_id']}",
+                "address": cust.get("address") or "-",
                 "amount": item["amount_paid"],
                 "created_at": item["created_at"]
             })
@@ -275,6 +285,208 @@ def summary_by_date(selected_date: str):
 
     except Exception as e:
         return {"error": str(e)}
+
+@router.get("/daily-sheet/{selected_date}")
+def get_daily_sheet(selected_date: str):
+    try:
+        cur_date_obj = datetime.strptime(selected_date, "%Y-%m-%d")
+        yesterday_date = (cur_date_obj - timedelta(days=1)).strftime("%Y-%m-%d")
+
+        # 1. Fetch places ordered by priority
+        places_res = (
+            supabase.table("places")
+            .select("id, name, priority")
+            .order("priority")
+            .execute()
+        )
+        places = places_res.data or []
+
+        # 2. Fetch all customers
+        cust_res = (
+            supabase.table("customers")
+            .select("""
+                customer_id,
+                name,
+                phone,
+                address,
+                loan_given,
+                loan_date,
+                loan_amount,
+                type,
+                place_id,
+                places(id, name, priority)
+            """)
+            .execute()
+        )
+        all_customers = cust_res.data or []
+
+        # 3. Fetch transactions with pagination
+        PAGE_SIZE = 1000
+        all_txns = []
+        page = 0
+        while True:
+            batch = (
+                supabase.table("transactions")
+                .select("id, customer_id, amount_paid, payment_date")
+                .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+                .execute()
+                .data or []
+            )
+            all_txns.extend(batch)
+            if len(batch) < PAGE_SIZE:
+                break
+            page += 1
+
+        paid_map = {}
+        today_paid_map = {}
+        today_tx_id_map = {}
+        yesterday_paid_map = {}
+        last_payment_map = {}
+
+        for t in all_txns:
+            cid = t.get("customer_id")
+            amt = t.get("amount_paid", 0) or 0
+            pdate = t.get("payment_date")
+            tid = t.get("id")
+
+            if cid is None:
+                continue
+
+            paid_map[cid] = paid_map.get(cid, 0) + amt
+
+            if pdate == selected_date:
+                today_paid_map[cid] = today_paid_map.get(cid, 0) + amt
+                today_tx_id_map[cid] = tid
+
+            if pdate == yesterday_date:
+                yesterday_paid_map[cid] = yesterday_paid_map.get(cid, 0) + amt
+
+            # Most recent payment strictly before selected_date
+            if pdate and pdate < selected_date:
+                curr_last = last_payment_map.get(cid)
+                if not curr_last or pdate > curr_last["date"]:
+                    last_payment_map[cid] = {"date": pdate, "amount": amt}
+
+        closed_ids = get_closed_customer_ids()
+
+        active_sheet_customers = []
+        total_collected = 0
+        collected_count = 0
+        total_expected_daily = 0
+
+        for c in all_customers:
+            cid = c.get("customer_id")
+            today_paid = today_paid_map.get(cid, 0)
+            today_tx_id = today_tx_id_map.get(cid)
+            is_closed = cid in closed_ids
+
+            # Closed customers: omit unless they paid on selected_date
+            if is_closed and today_paid == 0:
+                continue
+
+            if not c.get("loan_given", True) and today_paid == 0:
+                continue
+
+            # Must be disbursed before selected_date (repayment begins D+1) unless paid today
+            loan_date = c.get("loan_date")
+            if loan_date and loan_date >= selected_date and today_paid == 0:
+                continue
+
+            place_info = c.pop("places", None) or {}
+            c["place_name"] = place_info.get("name")
+            c["place_priority"] = place_info.get("priority") if place_info.get("priority") is not None else 999
+
+            loan_amount = c.get("loan_amount") or 0
+            total_paid = paid_map.get(cid, 0)
+            balance = loan_amount - total_paid
+
+            yesterday_paid = yesterday_paid_map.get(cid, 0)
+            last_prior = last_payment_map.get(cid)
+
+            # Include if balance > 0 OR they paid today (e.g. loan finished today)
+            if balance <= 0 and today_paid == 0:
+                continue
+
+            daily_installment = 0
+            if c.get("type") == "DL":
+                daily_installment = round(loan_amount / 100) if loan_amount > 0 else 0
+            else:
+                daily_installment = 0
+
+            c["balance"] = balance
+            c["total_paid"] = total_paid
+            c["daily_installment"] = daily_installment
+            c["today_paid"] = today_paid
+            c["today_tx_id"] = today_tx_id
+            c["yesterday_paid"] = yesterday_paid
+            c["last_payment_date"] = last_prior["date"] if last_prior else None
+            c["last_payment_amount"] = last_prior["amount"] if last_prior else None
+            c["is_closed"] = is_closed
+
+            if today_paid > 0:
+                collected_count += 1
+                total_collected += today_paid
+            total_expected_daily += daily_installment
+
+            active_sheet_customers.append(c)
+
+        # Sort customers: by place priority ASC, then place_name, then customer_id ASC
+        active_sheet_customers.sort(
+            key=lambda x: (
+                x.get("place_priority", 999),
+                x.get("place_name") or "",
+                x.get("customer_id", 0)
+            )
+        )
+
+        return {
+            "date": selected_date,
+            "yesterday_date": yesterday_date,
+            "places": places,
+            "customers": active_sheet_customers,
+            "summary": {
+                "total_customers": len(active_sheet_customers),
+                "collected_count": collected_count,
+                "total_collected": total_collected,
+                "total_expected_daily": total_expected_daily
+            }
+        }
+    except Exception as e:
+        return {"error": str(e)}
+
+@router.delete("/delete/{transaction_id}")
+def delete_transaction(transaction_id: int):
+    try:
+        tx_res = (
+            supabase.table("transactions")
+            .select("*")
+            .eq("id", transaction_id)
+            .execute()
+        )
+        if not tx_res.data:
+            return {"error": "Transaction not found"}
+
+        tx = tx_res.data[0]
+        cid = str(tx.get("customer_id"))
+        pdate = tx.get("payment_date")
+        amt = tx.get("amount_paid")
+
+        # Delete cashbook entry matching this collection
+        supabase.table("cashbook").delete().match({
+            "type": "credit",
+            "source": "collection",
+            "reference_id": cid,
+            "date": pdate,
+            "amount": amt
+        }).execute()
+
+        # Delete transaction
+        supabase.table("transactions").delete().eq("id", transaction_id).execute()
+
+        return {"message": "Transaction deleted successfully"}
+    except Exception as e:
+        return {"error": str(e)}
+
 
 def get_not_paid_logic():
     today = date.today().isoformat()
@@ -1105,37 +1317,9 @@ def get_migration_status():
 @router.post("/complete-migration")
 def complete_migration():
     """
-    One-time migration finalization.
-
-    1. Rejects if already completed (app_settings check).
-    2. Calculates current net cashbook balance (the distortion amount).
-    3. Claims the migration lock by inserting app_settings first.
-    4. Inserts a single migration_offset cashbook entry to zero the balance.
-    5. Records the offset amount for audit.
-
-    Atomic safety: app_settings PRIMARY KEY prevents duplicate execution.
-    If offset insert fails after lock is claimed, the lock is rolled back.
+    Finalize or recalibrate the migration offset to bring Available Cash to exactly ₹0.
+    Can be run initially or recalibrated when migration data entry has finished.
     """
-    # --- Step 1: Check if already completed ---
-    try:
-        existing = (
-            supabase.table("app_settings")
-            .select("value")
-            .eq("key", "migration_completed")
-            .execute()
-        )
-        if existing.data:
-            raise HTTPException(
-                status_code=400,
-                detail="Initial migration has already been completed.",
-            )
-    except HTTPException:
-        raise
-    except Exception:
-        # Table may not exist or be empty — that means not completed
-        pass
-
-    # --- Step 2: Calculate current distorted balance ---
     try:
         cash = get_cash_balance()
         if "error" in cash:
@@ -1154,64 +1338,69 @@ def complete_migration():
 
     now = datetime.utcnow().isoformat() + "Z"
     today_str = date.today().isoformat()
+    yesterday_str = (date.today() - timedelta(days=1)).isoformat()
+    offset_date = f"{yesterday_str}T23:59:59"
+
+    # If already exactly 0, nothing to offset
+    if current_balance == 0:
+        return {
+            "message": "Available Cash is already ₹0. Migration is completely balanced.",
+            "offset_amount": 0,
+            "current_balance": 0
+        }
+
     offset_amount = abs(current_balance)
-    offset_type = "credit" if current_balance <= 0 else "debit"
+    offset_type = "credit" if current_balance < 0 else "debit"
 
-    # --- Step 3: Claim migration lock (app_settings insert) ---
-    try:
-        supabase.table("app_settings").insert(
-            {"key": "migration_completed", "value": now}
-        ).execute()
-    except Exception as e:
-        # PRIMARY KEY violation = another request completed first
-        raise HTTPException(
-            status_code=400,
-            detail="Initial migration has already been completed.",
-        )
+    # Check if there is an existing migration_offset in cashbook
+    existing_offset = (
+        supabase.table("cashbook")
+        .select("id, amount, type")
+        .eq("source", "migration_offset")
+        .execute()
+        .data or []
+    )
 
-    # --- Step 4: Insert migration offset into cashbook ---
-    try:
-        offset_entry = (
-            supabase.table("cashbook")
-            .insert(
-                {
-                    "amount": offset_amount,
-                    "type": offset_type,
-                    "source": "migration_offset",
-                    "reference_id": f"migration_{now}",
-                    "date": today_str,
-                }
-            )
-            .execute()
-        )
+    if existing_offset:
+        # Update existing offset row to incorporate the adjustment
+        first = existing_offset[0]
+        old_contrib = first["amount"] if first["type"] == "credit" else -first["amount"]
+        new_contrib = old_contrib + (offset_amount if offset_type == "credit" else -offset_amount)
+        new_type = "credit" if new_contrib >= 0 else "debit"
+        new_amt = abs(new_contrib)
 
-        if not offset_entry.data:
-            raise Exception("Empty response from cashbook insert")
+        supabase.table("cashbook").update({
+            "amount": new_amt,
+            "type": new_type,
+            "date": offset_date
+        }).eq("id", first["id"]).execute()
 
-    except Exception as e:
-        # Rollback: remove the lock we just claimed
-        try:
-            supabase.table("app_settings").delete().eq(
-                "key", "migration_completed"
-            ).execute()
-        except Exception:
-            pass
-        raise HTTPException(
-            status_code=500,
-            detail=f"Failed to create migration offset entry: {e}",
-        )
+        final_offset_amount = new_amt
+    else:
+        # Insert a new migration offset
+        supabase.table("cashbook").insert({
+            "amount": offset_amount,
+            "type": offset_type,
+            "source": "migration_offset",
+            "reference_id": f"migration_{now}",
+            "date": offset_date
+        }).execute()
+        final_offset_amount = offset_amount
 
-    # --- Step 5: Record audit data ---
-    try:
-        supabase.table("app_settings").insert(
-            {"key": "migration_offset_amount", "value": str(offset_amount)}
-        ).execute()
-    except Exception:
-        pass  # Non-critical — the offset is already in cashbook
+    # Update app_settings
+    supabase.table("app_settings").upsert({
+        "key": "migration_completed",
+        "value": now
+    }).execute()
+
+    supabase.table("app_settings").upsert({
+        "key": "migration_offset_amount",
+        "value": str(final_offset_amount)
+    }).execute()
 
     return {
-        "message": "Initial migration completed successfully",
-        "offset_amount": offset_amount,
+        "message": "Initial migration completed successfully. Available Cash is now ₹0.",
+        "offset_amount": final_offset_amount,
         "offset_type": offset_type,
         "completed_at": now,
     }

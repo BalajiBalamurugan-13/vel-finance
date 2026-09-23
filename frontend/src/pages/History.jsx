@@ -4,8 +4,10 @@ import {
     getHistoryByDate,
     getCashFlow
 } from "../services/historyService";
+import { useLanguage } from "../context/LanguageContext";
 
 function History() {
+  const { t } = useLanguage();
   const inputStyles = `
   w-full
   rounded-xl
@@ -25,8 +27,7 @@ function History() {
   focus:border-transparent
   `;
 
-  const labelStyles =
-    "block text-sm font-medium text-slate-300 mb-2";
+  const labelStyles = "block text-sm font-medium text-slate-300 mb-2";
   const today = new Date().toISOString().split("T")[0];
 
   const [selectedDate, setSelectedDate] = useState(today);
@@ -53,17 +54,17 @@ function History() {
     <div className="max-w-4xl mx-auto px-5 py-6 pb-10 space-y-8">
       <div className="space-y-2">
           <h1 className="text-3xl font-bold text-white">
-              Daily Summary
+              {t("history.title")}
           </h1>
 
           <p className="text-slate-400 text-sm">
-              Collections, expenses & cash flow
+              {t("history.subtitle")}
           </p>
       </div>
 
       <div className="max-w-sm">
           <label className={labelStyles}>
-              Summary Date
+              {t("history.summary_date")}
           </label>
 
           <input
@@ -82,69 +83,36 @@ function History() {
         <>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
 
-            <div
-  className="
-    bg-slate-900
-    rounded-2xl
-    border
-    border-green-500/20
-    p-6
-    shadow-md
-  "
->
+            <div className="bg-slate-900 rounded-2xl border border-green-500/20 p-6 shadow-md">
               <div className="flex items-center justify-between">
-                <p className="text-slate-400 text-sm font-medium">Collection</p>
+                <p className="text-slate-400 text-sm font-medium">{t("history.collections")}</p>
                 <span className="text-3xl">💰</span>
               </div>
 
               <h2 className="text-4xl font-bold text-green-400 mt-4">
-                ₹{history.collection}
+                ₹{(history.collection || 0).toLocaleString("en-IN")}
               </h2>
             </div>
 
-            <div
-  className="
-    bg-slate-900
-    rounded-2xl
-    border
-    border-red-500/20
-    p-6
-    shadow-md
-  "
->
+            <div className="bg-slate-900 rounded-2xl border border-red-500/20 p-6 shadow-md">
               <div className="flex items-center justify-between">
-                <p className="text-slate-400 font-medium text-sm">Expense</p>
+                <p className="text-slate-400 text-sm font-medium">{t("history.expenses")}</p>
                 <span className="text-3xl">💸</span>
               </div>
 
-              <h2 className="text-4xl font-bold text-red-400 mt-3">
-                ₹{history.expense}
+              <h2 className="text-4xl font-bold text-red-400 mt-4">
+                ₹{(history.expense || 0).toLocaleString("en-IN")}
               </h2>
             </div>
 
-            <div
-  className="
-    bg-slate-900
-    rounded-2xl
-    border
-    border-blue-500/20
-    p-6
-    shadow-md
-  "
->
+            <div className="bg-slate-900 rounded-2xl border border-slate-700 p-6 shadow-md">
               <div className="flex items-center justify-between">
-                <p className="text-slate-400 font-medium text-sm">Net</p>
+                <p className="text-slate-400 text-sm font-medium">{t("history.net")}</p>
                 <span className="text-3xl">📊</span>
               </div>
 
-              <h2
-                className={`text-4xl font-bold mt-3 ${
-                  history.net >= 0
-                    ? "text-blue-400"
-                    : "text-red-400"
-                }`}
-              >
-                ₹{history.net}
+              <h2 className={`text-4xl font-bold mt-4 ${(history.net || 0) >= 0 ? "text-green-400" : "text-red-400"}`}>
+                ₹{(history.net || 0).toLocaleString("en-IN")}
               </h2>
             </div>
 
@@ -152,78 +120,65 @@ function History() {
 
           {cashFlow && (
 
-          <div
-  className="
-    bg-slate-900
-    border
-    border-slate-800
-    rounded-2xl
-    p-6
-    shadow-md
-  "
->
+          <div className="bg-slate-900 border border-slate-800 rounded-2xl p-6 shadow-md">
 
               <div className="flex items-center justify-between mb-6">
-
                   <h2 className="text-2xl font-bold text-white">
-                      💵 Cash Flow
+                      💵 {t("history.cash_flow")}
                   </h2>
-
               </div>
 
               <div className="space-y-4">
 
                   <div className="flex justify-between">
                       <span className="text-slate-300">
-    Opening Balance
-</span>
+                          {t("history.opening_balance")}
+                      </span>
                       <span className="font-semibold text-white">
-    ₹{cashFlow.opening_cash}
-</span>
+                          ₹{(cashFlow.opening_cash || 0).toLocaleString("en-IN")}
+                      </span>
                   </div>
 
                   <div className="flex justify-between text-green-400">
-                      <span className="font-medium">+ Investment</span>
-                      <span>₹{cashFlow.investments}</span>
+                      <span className="font-medium">+ {t("dashboard.investment")}</span>
+                      <span>₹{(cashFlow.investments || 0).toLocaleString("en-IN")}</span>
                   </div>
 
                   <div className="flex justify-between text-green-400">
-                      <span className="font-medium">+ Collections</span>
-                      <span>₹{cashFlow.collections}</span>
+                      <span className="font-medium">+ {t("dashboard.collections")}</span>
+                      <span>₹{(cashFlow.collections || 0).toLocaleString("en-IN")}</span>
                   </div>
 
                   <div className="flex justify-between text-green-400">
-                      <span className="font-medium">+ Advances</span>
-                      <span>₹{cashFlow.advances}</span>
+                      <span className="font-medium">+ {t("dashboard.furniture_advance")}</span>
+                      <span>₹{(cashFlow.advances || 0).toLocaleString("en-IN")}</span>
                   </div>
 
                   <div className="flex justify-between text-red-400">
-                      <span className="font-medium">- Purchases</span>
-                      <span>₹{cashFlow.purchases}</span>
+                      <span className="font-medium">- {t("dashboard.furniture_purchase")}</span>
+                      <span>₹{(cashFlow.purchases || 0).toLocaleString("en-IN")}</span>
                   </div>
 
                   <div className="flex justify-between text-red-400">
-                      <span className="font-medium">- Loans</span>
-                      <span>₹{cashFlow.loans}</span>
+                      <span className="font-medium">- {t("dashboard.loans_given")}</span>
+                      <span>₹{(cashFlow.loans || 0).toLocaleString("en-IN")}</span>
                   </div>
 
                   <div className="flex justify-between text-red-400">
-                      <span className="font-medium">- Expenses</span>
-                      <span>₹{cashFlow.expenses}</span>
+                      <span className="font-medium">- {t("dashboard.expenses")}</span>
+                      <span>₹{(cashFlow.expenses || 0).toLocaleString("en-IN")}</span>
                   </div>
 
                   <div className="border-t border-slate-700 my-2"></div>
 
                   <div className="flex items-center justify-between pt-2">
-
                       <span className="text-2xl font-bold text-emerald-400">
-                          Closing Cash
+                          {t("history.closing_cash")}
                       </span>
 
                       <span className="text-3xl font-bold text-emerald-400">
-                          ₹{cashFlow.closing_cash}
+                          ₹{(cashFlow.closing_cash || 0).toLocaleString("en-IN")}
                       </span>
-
                   </div>
 
               </div>
@@ -233,56 +188,39 @@ function History() {
           )}
 
           <div>
-            <h2 className="text-xl font-semibold mb-2">Transactions</h2>
+            <h2 className="text-xl font-semibold mb-2">{t("history.transactions")}</h2>
 
             {history.transactions.length === 0 ? (
               <div className="bg-slate-900 rounded-xl p-6 text-center text-gray-400">
-                📭 No transactions for this date
+                📭 {t("history.no_transactions")}
               </div>
             ) : (
               <div className="space-y-3">
                 <div className="overflow-hidden rounded-xl border border-slate-700">
 
-                  <div className="grid grid-cols-[60px_1fr_90px] bg-slate-800 p-4 text-slate-400 font-medium">
-
+                  <div className="grid grid-cols-[60px_1fr_90px] bg-slate-800 p-4 text-slate-400 font-medium text-xs">
                       <div>ID</div>
-
-                      <div>Name</div>
-
-                      <div className="text-right">
-                          Amount
-                      </div>
-
+                      <div>{t("dashboard.name")}</div>
+                      <div className="text-right">{t("dashboard.amount")}</div>
                   </div>
 
-                  {history.transactions.map((t) => (
-
+                  {history.transactions.map((tr) => (
                       <div
-                          key={`${t.customer_id}-${t.created_at}`}
-                          className="
-grid
-grid-cols-[60px_1fr_90px]
-items-center
-p-4
-border-t
-border-slate-700
-"
+                          key={`${tr.customer_id}-${tr.created_at || tr.id}`}
+                          className="grid grid-cols-[60px_1fr_90px] items-center p-4 border-t border-slate-700 text-sm"
                       >
-
                           <div className="font-medium text-white">
-                              {t.customer_id}
+                              {tr.customer_id}
                           </div>
 
                           <div className="font-semibold text-white truncate">
-                              {t.customer_name}
+                              {tr.customer_name}
                           </div>
 
                           <div className="text-right text-lg font-bold text-emerald-400">
-                              ₹{t.amount}
+                              ₹{tr.amount}
                           </div>
-
                       </div>
-
                   ))}
 
               </div>
@@ -291,47 +229,40 @@ border-slate-700
           </div>
 
           <div>
-            <h2 className="text-xl font-semibold mb-2">Expenses</h2>
+            <h2 className="text-xl font-semibold mb-2">{t("history.expenses")}</h2>
 
             {history.expenses.length === 0 ? (
               <div className="bg-slate-900 rounded-xl p-6 text-center text-gray-400">
-                📭 No expenses for this date
+                📭 {t("history.no_expenses")}
               </div>
             ) : (
-              <div className="overflow-hidden rounded-xl border border-slate-700">
-
-                  <div className="grid grid-cols-3 bg-slate-800 p-4 text-slate-400 font-medium">
-
-                      <div>Note</div>
-                      <div>Time</div>
-                      <div className="text-right">Amount</div>
-
+              <div className="space-y-3">
+                <div className="overflow-hidden rounded-xl border border-slate-700">
+                  <div className="grid grid-cols-[1fr_80px_90px] bg-slate-800 p-4 text-slate-400 font-medium text-xs">
+                    <div>{t("dashboard.note")}</div>
+                    <div>{t("dashboard.time")}</div>
+                    <div className="text-right">{t("dashboard.amount")}</div>
                   </div>
 
                   {history.expenses.map((e) => (
-
-                      <div
-                          key={e.id}
-                          className="grid grid-cols-3 p-4 border-t border-slate-700 items-center"
-                      >
-
-                          <div>{e.note}</div>
-
-                          <div className="text-slate-400">
-                              {new Date(e.created_at).toLocaleTimeString([], {
-                                  hour: "2-digit",
-                                  minute: "2-digit"
-                              })}
-                          </div>
-
-                          <div className="text-right text-red-400 font-bold">
-                              ₹{e.amount}
-                          </div>
-
+                    <div
+                      key={e.id}
+                      className="grid grid-cols-[1fr_80px_90px] items-center p-4 border-t border-slate-700 text-sm"
+                    >
+                      <div className="font-semibold text-white truncate">
+                        {e.note}
                       </div>
 
-                  ))}
+                      <div className="text-xs text-slate-400">
+                        {e.created_at ? new Date(e.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "-"}
+                      </div>
 
+                      <div className="text-right text-lg font-bold text-rose-400">
+                        ₹{e.amount}
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

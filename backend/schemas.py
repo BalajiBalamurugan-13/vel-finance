@@ -24,6 +24,8 @@ class CustomerUpdate(BaseModel):
     address: Optional[str] = None
     due_date: Optional[str] = None
     place_id: Optional[int] = None
+    loan_amount: Optional[int] = None
+    loan_date: Optional[str] = None
 
 
 class CustomerActivate(BaseModel):

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Sidebar from "../components/Sidebar";
+import LanguageToggle from "../components/LanguageToggle";
 
 function MainLayout({ children }) {
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -36,7 +37,7 @@ function MainLayout({ children }) {
             VEL Finance
           </h1>
 
-          <div></div>
+          <LanguageToggle />
 
         </div>
 
