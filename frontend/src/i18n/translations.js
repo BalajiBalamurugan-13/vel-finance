@@ -234,6 +234,14 @@ const translations = {
       delete: "நீக்க",
       total_places: "மொத்த ஊர்கள்",
       search_placeholder: "ஊரின் பெயரை தேடுக...",
+      drag_hint: "தொட்டு இழுத்து அல்லது எண் தேர்வு செய்து நேரடியாக வரிசையை மாற்றலாம் (Touch & drag or pick position to move)",
+      move_to: "வரிசை எண்ணுக்கு நகர்த்த",
+      move_to_position: "நேரடியாக எந்த வரிசைக்கு நகர்த்த வேண்டும்?",
+      top: "🔝 முதலிடம் (#1)",
+      bottom: "🔻 கடைசி இடம்",
+      move: "நகர்த்த",
+      saving_order: "வரிசை சேமிக்கப்படுகிறது...",
+      reorder_success: "ஊர்களின் வரிசை சேமிக்கப்பட்டது!",
     },
 
     // Common
@@ -479,6 +487,14 @@ const translations = {
       delete: "Delete",
       total_places: "Total Places",
       search_placeholder: "Search place...",
+      drag_hint: "Touch & drag or pick position to move directly",
+      move_to: "Move to position",
+      move_to_position: "Move directly to which position?",
+      top: "🔝 Move to Top (#1)",
+      bottom: "🔻 Move to Bottom",
+      move: "Move",
+      saving_order: "Saving route order...",
+      reorder_success: "Place order saved successfully!",
     },
 
     common: {

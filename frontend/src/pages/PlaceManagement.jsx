@@ -1,25 +1,52 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { toast } from "react-toastify";
-import { FiMapPin, FiPlus, FiArrowUp, FiArrowDown, FiTrash2, FiEdit2, FiCheck, FiX } from "react-icons/fi";
+import {
+  FiMapPin,
+  FiPlus,
+  FiArrowUp,
+  FiArrowDown,
+  FiTrash2,
+  FiEdit2,
+  FiCheck,
+  FiX,
+  FiCornerDownRight,
+} from "react-icons/fi";
+import { GripVertical } from "lucide-react";
 import PageHeader from "../components/PageHeader";
-import { getPlaces, createPlace, updatePlace, deletePlace, reorderPlaces } from "../services/placeService";
+import {
+  getPlaces,
+  createPlace,
+  updatePlace,
+  deletePlace,
+  reorderPlaces,
+} from "../services/placeService";
 import { useLanguage } from "../context/LanguageContext";
 
 function PlaceManagement() {
   const { t } = useLanguage();
-  const [places, setPlaces]       = useState([]);
-  const [loading, setLoading]     = useState(true);
-  const [saving, setSaving]       = useState(false);
-  const [newName, setNewName]     = useState("");
-  const [adding, setAdding]       = useState(false);
+  const [places, setPlaces] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
-  const [editName, setEditName]   = useState("");
+  const [editName, setEditName] = useState("");
+
+  // Drag and Drop States
+  const [draggedIdx, setDraggedIdx] = useState(null);
+  const [dragOverIdx, setDragOverIdx] = useState(null);
+  const [isTouchDragging, setIsTouchDragging] = useState(false);
+  const touchCurrentIdx = useRef(null);
+
+  // Quick Move Modal State
+  const [moveModalPlace, setMoveModalPlace] = useState(null);
+  const [targetPos, setTargetPos] = useState("");
 
   async function loadPlaces() {
     setLoading(true);
     try {
       const data = await getPlaces();
-      setPlaces(data);
+      setPlaces(data || []);
     } catch (err) {
       console.error(err);
       toast.error("Failed to load places.");
@@ -28,19 +55,37 @@ function PlaceManagement() {
     }
   }
 
-  useEffect(() => { loadPlaces(); }, []);
+  useEffect(() => {
+    loadPlaces();
+  }, []);
+
+  // ── Persist Reorder ────────────────────────────────────────────────────────
+  async function persistOrder(updatedPlaces) {
+    setSaving(true);
+    const items = updatedPlaces.map((p, i) => ({ id: p.id, priority: i }));
+    try {
+      await reorderPlaces(items);
+      toast.success(t("places.reorder_success") || "வரிசை சேமிக்கப்பட்டது!");
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to reorder places.");
+      await loadPlaces();
+    } finally {
+      setSaving(false);
+    }
+  }
 
   // ── Add ──────────────────────────────────────────────────────────────────
-
   async function handleAdd() {
     const name = newName.trim();
-    if (!name) { toast.error("Place name cannot be empty."); return; }
+    if (!name) {
+      toast.error("Place name cannot be empty.");
+      return;
+    }
     setAdding(true);
     try {
-      // New place gets priority = max existing priority + 1
-      const maxPriority = places.length > 0
-        ? Math.max(...places.map((p) => p.priority))
-        : -1;
+      const maxPriority =
+        places.length > 0 ? Math.max(...places.map((p) => p.priority)) : -1;
       await createPlace({ name, priority: maxPriority + 1 });
       setNewName("");
       toast.success(`"${name}" added.`);
@@ -53,7 +98,6 @@ function PlaceManagement() {
   }
 
   // ── Edit ─────────────────────────────────────────────────────────────────
-
   function startEdit(place) {
     setEditingId(place.id);
     setEditName(place.name);
@@ -66,8 +110,14 @@ function PlaceManagement() {
 
   async function commitEdit(place) {
     const name = editName.trim();
-    if (!name) { toast.error("Place name cannot be empty."); return; }
-    if (name === place.name) { cancelEdit(); return; }
+    if (!name) {
+      toast.error("Place name cannot be empty.");
+      return;
+    }
+    if (name === place.name) {
+      cancelEdit();
+      return;
+    }
     setSaving(true);
     try {
       await updatePlace(place.id, { name });
@@ -81,43 +131,121 @@ function PlaceManagement() {
     }
   }
 
-  // ── Reorder ───────────────────────────────────────────────────────────────
-
+  // ── Move Up / Down Single Steps ──────────────────────────────────────────
   async function moveUp(index) {
     if (index === 0) return;
     const updated = [...places];
     [updated[index - 1], updated[index]] = [updated[index], updated[index - 1]];
-    // Re-assign sequential priorities starting from 0
-    const items = updated.map((p, i) => ({ id: p.id, priority: i }));
-    setSaving(true);
-    try {
-      await reorderPlaces(items);
-      await loadPlaces();
-    } catch (err) {
-      toast.error("Failed to reorder places.");
-    } finally {
-      setSaving(false);
-    }
+    setPlaces(updated);
+    await persistOrder(updated);
   }
 
   async function moveDown(index) {
     if (index === places.length - 1) return;
     const updated = [...places];
     [updated[index], updated[index + 1]] = [updated[index + 1], updated[index]];
-    const items = updated.map((p, i) => ({ id: p.id, priority: i }));
-    setSaving(true);
-    try {
-      await reorderPlaces(items);
-      await loadPlaces();
-    } catch (err) {
-      toast.error("Failed to reorder places.");
-    } finally {
-      setSaving(false);
-    }
+    setPlaces(updated);
+    await persistOrder(updated);
   }
 
-  // ── Delete ────────────────────────────────────────────────────────────────
+  // ── Move to Exact Position (Direct Shuffle) ───────────────────────────────
+  function openMoveModal(place, index) {
+    setMoveModalPlace({ ...place, currentIndex: index });
+    setTargetPos(String(index + 1));
+  }
 
+  async function handleMoveToPosition(customTarget) {
+    if (!moveModalPlace) return;
+    const fromIdx = moveModalPlace.currentIndex;
+    const dest = customTarget !== undefined ? customTarget : parseInt(targetPos, 10);
+
+    if (isNaN(dest) || dest < 1 || dest > places.length) {
+      toast.error(`Please enter a valid position between 1 and ${places.length}`);
+      return;
+    }
+
+    const toIdx = dest - 1;
+    if (fromIdx === toIdx) {
+      setMoveModalPlace(null);
+      return;
+    }
+
+    const updated = [...places];
+    const [moved] = updated.splice(fromIdx, 1);
+    updated.splice(toIdx, 0, moved);
+
+    setPlaces(updated);
+    setMoveModalPlace(null);
+    await persistOrder(updated);
+    toast.success(`"${moved.name}" ➔ #${dest}-க்கு நகர்த்தப்பட்டது!`);
+  }
+
+  // ── Desktop Drag and Drop ────────────────────────────────────────────────
+  const handleDragStart = (e, index) => {
+    e.dataTransfer.setData("text/plain", String(index));
+    e.dataTransfer.effectAllowed = "move";
+    setDraggedIdx(index);
+  };
+
+  const handleDragOver = (e, index) => {
+    e.preventDefault();
+    if (draggedIdx === null || draggedIdx === index) return;
+    setDragOverIdx(index);
+
+    // Live array shuffle during drag
+    setPlaces((prev) => {
+      const updated = [...prev];
+      const [item] = updated.splice(draggedIdx, 1);
+      updated.splice(index, 0, item);
+      setDraggedIdx(index);
+      return updated;
+    });
+  };
+
+  const handleDragEnd = async () => {
+    setDraggedIdx(null);
+    setDragOverIdx(null);
+    await persistOrder(places);
+  };
+
+  // ── Mobile Touch Drag ────────────────────────────────────────────────────
+  const handleTouchStart = (e, index) => {
+    touchCurrentIdx.current = index;
+    setDraggedIdx(index);
+    setIsTouchDragging(true);
+  };
+
+  const handleTouchMove = (e) => {
+    if (touchCurrentIdx.current === null) return;
+    const touch = e.touches[0];
+    const elem = document.elementFromPoint(touch.clientX, touch.clientY);
+    const row = elem?.closest("[data-place-index]");
+
+    if (row) {
+      const targetIndex = parseInt(row.getAttribute("data-place-index"), 10);
+      if (!isNaN(targetIndex) && targetIndex !== touchCurrentIdx.current) {
+        setPlaces((prev) => {
+          const updated = [...prev];
+          const [moved] = updated.splice(touchCurrentIdx.current, 1);
+          updated.splice(targetIndex, 0, moved);
+          touchCurrentIdx.current = targetIndex;
+          setDraggedIdx(targetIndex);
+          return updated;
+        });
+      }
+    }
+  };
+
+  const handleTouchEnd = async () => {
+    if (touchCurrentIdx.current !== null) {
+      touchCurrentIdx.current = null;
+      setDraggedIdx(null);
+      setIsTouchDragging(false);
+      await persistOrder(places);
+    }
+  };
+
+  // ── Delete ────────────────────────────────────────────────────────────────
   async function handleDelete(place) {
     const confirmed = window.confirm(
       `Delete "${place.name}"? This will fail if any customers are assigned to this place.`
@@ -136,9 +264,8 @@ function PlaceManagement() {
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
-
   return (
-    <div className="w-full max-w-xl mx-auto px-0 sm:px-4 py-4 sm:py-6 pb-10">
+    <div className="w-full max-w-xl mx-auto px-0 sm:px-4 py-4 sm:py-6 pb-12">
       <PageHeader
         title={t("places.title")}
         subtitle={t("places.subtitle")}
@@ -169,6 +296,19 @@ function PlaceManagement() {
         </div>
       </div>
 
+      {/* Quick Shuffle / Reorder Hint Banner */}
+      <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-3 mb-4 flex items-center justify-between gap-3 text-xs text-emerald-200">
+        <div className="flex items-center gap-2">
+          <span className="text-base">↕️</span>
+          <span>{t("places.drag_hint")}</span>
+        </div>
+        {saving && (
+          <span className="shrink-0 px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 animate-pulse text-[11px] font-medium">
+            {t("places.saving_order")}
+          </span>
+        )}
+      </div>
+
       {/* Places list */}
       <div className="bg-[#182238] border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
         <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-slate-800 flex items-center gap-2">
@@ -191,99 +331,269 @@ function PlaceManagement() {
             No places yet. Add the first one above.
           </div>
         ) : (
-          <ul className="divide-y divide-slate-800">
-            {places.map((place, idx) => (
-              <li key={place.id} className="flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 sm:py-3.5 min-w-0">
-                {/* Priority number */}
-                <span className="w-5 sm:w-6 text-center text-xs font-bold text-slate-500 select-none shrink-0">
-                  {idx + 1}
-                </span>
+          <ul
+            className="divide-y divide-slate-800/80"
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+          >
+            {places.map((place, idx) => {
+              const isBeingDragged = draggedIdx === idx;
 
-                {/* Name / edit field */}
-                {editingId === place.id ? (
-                  <input
-                    autoFocus
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") commitEdit(place);
-                      if (e.key === "Escape") cancelEdit();
-                    }}
-                    className="min-w-0 flex-1 bg-[#0f172a] border border-slate-600 rounded-lg px-2.5 sm:px-3 py-1.5 text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                  />
-                ) : (
-                  <span className="min-w-0 flex-1 text-white font-medium text-sm sm:text-base truncate" title={place.name}>
-                    {place.name}
-                  </span>
-                )}
+              return (
+                <li
+                  key={place.id}
+                  data-place-index={idx}
+                  draggable={editingId !== place.id}
+                  onDragStart={(e) => handleDragStart(e, idx)}
+                  onDragOver={(e) => handleDragOver(e, idx)}
+                  onDragEnd={handleDragEnd}
+                  className={`
+                    flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 sm:py-3.5 min-w-0 transition-all duration-150 select-none
+                    ${
+                      isBeingDragged
+                        ? "bg-slate-800/90 border-y-2 border-emerald-500/80 scale-[1.01] shadow-2xl z-20 opacity-95"
+                        : "hover:bg-slate-800/50"
+                    }
+                  `}
+                >
+                  {/* Touch / Mouse Drag Handle */}
+                  <div
+                    onTouchStart={(e) => handleTouchStart(e, idx)}
+                    title={t("places.drag_hint")}
+                    className="cursor-grab active:cursor-grabbing text-slate-500 hover:text-emerald-400 p-1 -ml-1 rounded-lg touch-none transition-colors shrink-0"
+                  >
+                    <GripVertical size={18} />
+                  </div>
 
-                {/* Action buttons */}
-                <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+                  {/* Interactive Priority Number Badge (Click to Jump Directly) */}
+                  <button
+                    type="button"
+                    onClick={() => openMoveModal(place, idx)}
+                    title={`${t("places.move_to")} (Click to move anywhere)`}
+                    className="
+                      min-w-[28px] sm:min-w-[32px] h-7 px-1.5 rounded-lg
+                      bg-slate-800/90 hover:bg-emerald-600/30 hover:border-emerald-500/50
+                      border border-slate-700/70 text-slate-300 hover:text-emerald-300
+                      font-bold text-xs flex items-center justify-center gap-0.5
+                      transition-all active:scale-95 shrink-0 shadow-sm
+                    "
+                  >
+                    <span>{idx + 1}</span>
+                  </button>
+
+                  {/* Name / Edit Input */}
                   {editingId === place.id ? (
-                    <>
-                      <button
-                        onClick={() => commitEdit(place)}
-                        disabled={saving}
-                        title="Save name"
-                        className="w-7 h-7 flex items-center justify-center rounded-lg text-emerald-400 hover:bg-emerald-500/20 transition shrink-0"
-                      >
-                        <FiCheck size={14} />
-                      </button>
-                      <button
-                        onClick={cancelEdit}
-                        title="Cancel"
-                        className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-700 transition shrink-0"
-                      >
-                        <FiX size={14} />
-                      </button>
-                    </>
+                    <input
+                      autoFocus
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") commitEdit(place);
+                        if (e.key === "Escape") cancelEdit();
+                      }}
+                      className="min-w-0 flex-1 bg-[#0f172a] border border-slate-600 rounded-lg px-2.5 sm:px-3 py-1.5 text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
                   ) : (
-                    <button
-                      onClick={() => startEdit(place)}
-                      title="Rename"
-                      className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition shrink-0"
+                    <span
+                      onClick={() => openMoveModal(place, idx)}
+                      className="min-w-0 flex-1 text-white font-medium text-sm sm:text-base truncate cursor-pointer hover:text-emerald-300 transition-colors"
+                      title={place.name}
                     >
-                      <FiEdit2 size={13} />
-                    </button>
+                      {place.name}
+                    </span>
                   )}
 
-                  <button
-                    onClick={() => moveUp(idx)}
-                    disabled={idx === 0 || saving}
-                    title="Move up"
-                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition shrink-0"
-                  >
-                    <FiArrowUp size={13} />
-                  </button>
+                  {/* Action buttons */}
+                  <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
+                    {editingId === place.id ? (
+                      <>
+                        <button
+                          onClick={() => commitEdit(place)}
+                          disabled={saving}
+                          title="Save name"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-emerald-400 hover:bg-emerald-500/20 transition shrink-0"
+                        >
+                          <FiCheck size={14} />
+                        </button>
+                        <button
+                          onClick={cancelEdit}
+                          title="Cancel"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-700 transition shrink-0"
+                        >
+                          <FiX size={14} />
+                        </button>
+                      </>
+                    ) : (
+                      <button
+                        onClick={() => startEdit(place)}
+                        title="Rename"
+                        className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition shrink-0"
+                      >
+                        <FiEdit2 size={13} />
+                      </button>
+                    )}
 
-                  <button
-                    onClick={() => moveDown(idx)}
-                    disabled={idx === places.length - 1 || saving}
-                    title="Move down"
-                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-25 disabled:cursor-not-allowed transition shrink-0"
-                  >
-                    <FiArrowDown size={13} />
-                  </button>
+                    {/* Quick Move To Position Button */}
+                    <button
+                      onClick={() => openMoveModal(place, idx)}
+                      title={t("places.move_to")}
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-emerald-400/80 hover:text-emerald-300 hover:bg-emerald-500/20 transition shrink-0"
+                    >
+                      <FiCornerDownRight size={13} />
+                    </button>
 
-                  <button
-                    onClick={() => handleDelete(place)}
-                    disabled={saving}
-                    title="Delete"
-                    className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 disabled:opacity-25 disabled:cursor-not-allowed transition shrink-0"
-                  >
-                    <FiTrash2 size={13} />
-                  </button>
-                </div>
-              </li>
-            ))}
+                    {/* Move Up 1 Step */}
+                    <button
+                      onClick={() => moveUp(idx)}
+                      disabled={idx === 0 || saving}
+                      title="Move up 1"
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-20 disabled:cursor-not-allowed transition shrink-0"
+                    >
+                      <FiArrowUp size={13} />
+                    </button>
+
+                    {/* Move Down 1 Step */}
+                    <button
+                      onClick={() => moveDown(idx)}
+                      disabled={idx === places.length - 1 || saving}
+                      title="Move down 1"
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-20 disabled:cursor-not-allowed transition shrink-0"
+                    >
+                      <FiArrowDown size={13} />
+                    </button>
+
+                    {/* Delete */}
+                    <button
+                      onClick={() => handleDelete(place)}
+                      disabled={saving}
+                      title="Delete"
+                      className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 disabled:opacity-20 disabled:cursor-not-allowed transition shrink-0"
+                    >
+                      <FiTrash2 size={13} />
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
           </ul>
         )}
       </div>
 
       {places.length > 0 && (
         <p className="mt-4 text-xs text-slate-500 text-center">
-          Use the arrows to set the daily collection route order. Row 1 is visited first.
+          {t("places.drag_hint")}
         </p>
+      )}
+
+      {/* ── Direct "Move to Position" Modal ────────────────────────────── */}
+      {moveModalPlace && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#182238] border border-slate-700/80 rounded-2xl p-5 sm:p-6 w-full max-w-sm shadow-2xl relative">
+            <button
+              onClick={() => setMoveModalPlace(null)}
+              className="absolute right-4 top-4 text-slate-400 hover:text-white p-1"
+            >
+              ✕
+            </button>
+
+            <div className="flex items-center gap-2 mb-2 text-emerald-400 text-sm font-semibold">
+              <FiMapPin size={16} />
+              <span>{t("places.move_to")}</span>
+            </div>
+
+            <h3 className="text-xl font-bold text-white mb-1 truncate">
+              {moveModalPlace.name}
+            </h3>
+
+            <p className="text-xs text-slate-400 mb-4">
+              தற்போதைய வரிசை:{" "}
+              <strong className="text-amber-400 font-bold">
+                #{moveModalPlace.currentIndex + 1}
+              </strong>{" "}
+              (மொத்தம்: {places.length} ஊர்கள்)
+            </p>
+
+            {/* Quick One-Click Action Chips */}
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => handleMoveToPosition(1)}
+                className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-emerald-600/30 hover:border-emerald-500/50 border border-slate-700 text-slate-200 hover:text-emerald-300 font-semibold text-xs transition active:scale-95 text-center flex items-center justify-center gap-1"
+              >
+                <span>{t("places.top")}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => handleMoveToPosition(places.length)}
+                className="px-3 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 text-xs font-semibold transition active:scale-95 text-center flex items-center justify-center gap-1"
+              >
+                <span>{t("places.bottom")}</span>
+              </button>
+
+              {moveModalPlace.currentIndex >= 5 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleMoveToPosition(moveModalPlace.currentIndex + 1 - 5)
+                  }
+                  className="px-3 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs transition active:scale-95"
+                >
+                  ⬆️ 5 இடங்கள் மேலே
+                </button>
+              )}
+
+              {moveModalPlace.currentIndex <= places.length - 6 && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    handleMoveToPosition(moveModalPlace.currentIndex + 1 + 5)
+                  }
+                  className="px-3 py-2 rounded-xl bg-slate-800/80 hover:bg-slate-700 border border-slate-700 text-slate-300 text-xs transition active:scale-95"
+                >
+                  ⬇️ 5 இடங்கள் கீழே
+                </button>
+              )}
+            </div>
+
+            {/* Direct Number Input */}
+            <label className="block text-xs font-medium text-slate-300 mb-1.5">
+              {t("places.move_to_position")} (1 - {places.length})
+            </label>
+
+            <div className="flex gap-2 mb-5">
+              <input
+                type="number"
+                min="1"
+                max={places.length}
+                autoFocus
+                value={targetPos}
+                onChange={(e) => setTargetPos(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && handleMoveToPosition()}
+                placeholder="எ.கா: 2"
+                className="w-full bg-[#0f172a] border border-slate-600 rounded-xl px-4 py-2.5 text-white font-bold text-base text-center focus:outline-none focus:ring-2 focus:ring-emerald-500"
+              />
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setMoveModalPlace(null)}
+                className="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-sm font-semibold transition"
+              >
+                {t("common.cancel")}
+              </button>
+              <button
+                type="button"
+                onClick={() => handleMoveToPosition()}
+                className="px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white text-sm font-bold shadow-lg shadow-emerald-950/40 transition flex items-center gap-1.5"
+              >
+                <span>{t("places.move")}</span>
+                <span>➔</span>
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
