@@ -13,6 +13,9 @@ import NetDrawer from "../components/Dashboard/NetDrawer";
 import CashDrawer from "../components/Dashboard/CashDrawer";
 import InvestmentDrawer from "../components/Dashboard/InvestmentDrawer";
 import MigrationBanner from "../components/Dashboard/MigrationBanner";
+import LoanGivenDrawer from "../components/Dashboard/LoanGivenDrawer";
+import CustomerProfileDrawer from "../components/Customer/CustomerProfileDrawer";
+import { getCustomerDetails } from "../services/customerService";
 
 
 function Dashboard() {
@@ -21,6 +24,8 @@ function Dashboard() {
     const [selectedCard, setSelectedCard] = useState(null);
     const [cashFlow, setCashFlow] = useState(null);
     const [migrationStatus, setMigrationStatus] = useState(null);
+    const [selectedCustomerId, setSelectedCustomerId] = useState(null);
+    const [selectedCustomer, setSelectedCustomer] = useState(null);
 
     useEffect(() => {
       loadDashboard();
@@ -138,7 +143,40 @@ function Dashboard() {
                 cash={dashboardData.cash}
                 summary={cashFlow}
                 onAddInvestment={() => setSelectedCard("investment")}
+                onOpenLoans={() => setSelectedCard("loans")}
             />
+            <LoanGivenDrawer
+                open={selectedCard === "loans"}
+                onClose={() => setSelectedCard(null)}
+                loans={dashboardData?.today_loans?.loans || []}
+                date={new Date().toLocaleDateString("en-IN")}
+                onSelectCustomer={async (cid) => {
+                    try {
+                        const cust = await getCustomerDetails(cid);
+                        setSelectedCustomer(cust);
+                        setSelectedCustomerId(cid);
+                    } catch (e) {
+                        console.error("Failed to load customer", e);
+                    }
+                }}
+            />
+            {selectedCustomer && (
+                <CustomerProfileDrawer
+                    open={Boolean(selectedCustomer)}
+                    onClose={() => {
+                        setSelectedCustomer(null);
+                        setSelectedCustomerId(null);
+                    }}
+                    customer={selectedCustomer}
+                    refreshCustomer={async () => {
+                        if (selectedCustomerId) {
+                            const updated = await getCustomerDetails(selectedCustomerId);
+                            setSelectedCustomer(updated);
+                        }
+                    }}
+                    refreshCustomers={loadDashboard}
+                />
+            )}
             <InvestmentDrawer
                 open={selectedCard === "investment"}
                 onClose={() => setSelectedCard(null)}

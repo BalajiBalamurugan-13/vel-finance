@@ -1,3 +1,5 @@
+import logoWatermark from "../assets/Vel finance logo white.png";
+
 function DetailDrawer({
     open,
     onClose,
@@ -25,13 +27,25 @@ function DetailDrawer({
                 flex
                 flex-col
                 shadow-2xl
+                relative
+                overflow-hidden
             ">
+
+                {/* Subtle Centered Background Watermark with Golden Glow */}
+                <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0" aria-hidden="true">
+                    <div className="absolute w-60 h-60 rounded-full bg-amber-500/[0.08] blur-[60px] pointer-events-none" />
+                    <img
+                        src={logoWatermark}
+                        alt=""
+                        className="w-72 h-72 max-w-[70%] max-h-[70%] object-contain opacity-[0.20] select-none pointer-events-none transform -translate-x-[2%] translate-y-[2%] filter drop-shadow-[0_0_30px_rgba(245,158,11,0.5)] drop-shadow-[0_0_60px_rgba(217,119,6,0.3)]"
+                    />
+                </div>
 
                 {/* Header */}
 
                 {title || subtitle ? (
 
-                    <div className="p-6 border-b border-slate-800">
+                    <div className="p-6 border-b border-slate-800 relative z-10">
 
                         <div className="flex justify-between items-center">
 
@@ -96,7 +110,7 @@ function DetailDrawer({
 
                 {/* Scrollable Content */}
 
-                <div className="flex-1 overflow-y-auto px-6 pb-6">
+                <div className="flex-1 overflow-y-auto px-6 pb-6 relative z-10">
 
                     {children}
 

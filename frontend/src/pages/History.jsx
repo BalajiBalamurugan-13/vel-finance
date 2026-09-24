@@ -4,7 +4,11 @@ import {
     getHistoryByDate,
     getCashFlow
 } from "../services/historyService";
+import { getLoansByDate } from "../services/dashboardService";
+import { getCustomerDetails } from "../services/customerService";
 import { useLanguage } from "../context/LanguageContext";
+import LoanGivenDrawer from "../components/Dashboard/LoanGivenDrawer";
+import CustomerProfileDrawer from "../components/Customer/CustomerProfileDrawer";
 
 function History() {
   const { t } = useLanguage();
@@ -33,6 +37,10 @@ function History() {
   const [selectedDate, setSelectedDate] = useState(today);
   const [history, setHistory] = useState(null);
   const [cashFlow, setCashFlow] = useState(null);
+  const [showLoansDrawer, setShowLoansDrawer] = useState(false);
+  const [loansData, setLoansData] = useState([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState(null);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
 
   async function loadHistory(date) {
     try {
@@ -46,6 +54,18 @@ function History() {
       toast.error("Failed to load summary");
     }
   }
+
+  async function handleOpenLoans() {
+    try {
+      const res = await getLoansByDate(selectedDate);
+      setLoansData(res?.loans || []);
+      setShowLoansDrawer(true);
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to load loans given");
+    }
+  }
+
   useEffect(() => {
     loadHistory(selectedDate);
   }, []);
@@ -159,9 +179,19 @@ function History() {
                       <span>₹{(cashFlow.purchases || 0).toLocaleString("en-IN")}</span>
                   </div>
 
-                  <div className="flex justify-between text-red-400">
-                      <span className="font-medium">- {t("dashboard.loans_given")}</span>
-                      <span>₹{(cashFlow.loans || 0).toLocaleString("en-IN")}</span>
+                  <div
+                      onClick={handleOpenLoans}
+                      className="flex justify-between items-center p-2.5 -mx-2.5 rounded-xl hover:bg-slate-800 cursor-pointer transition-all border border-transparent hover:border-red-500/30 group active:scale-[0.99]"
+                      title={t("dashboard.loans_given_details")}
+                  >
+                      <div className="flex items-center gap-2">
+                          <span className="font-medium text-red-400">- {t("dashboard.loans_given")}</span>
+                          <span className="text-[11px] px-2 py-0.5 rounded-full bg-red-500/10 text-red-300 border border-red-500/20 group-hover:bg-red-500/20 transition-colors flex items-center gap-1 font-normal">
+                              <span>{t("dashboard.view_loans_hint")}</span>
+                              <span>➔</span>
+                          </span>
+                      </div>
+                      <span className="font-bold text-red-400">₹{(cashFlow.loans || 0).toLocaleString("en-IN")}</span>
                   </div>
 
                   <div className="flex justify-between text-red-400">
@@ -267,6 +297,42 @@ function History() {
             )}
           </div>
         </>
+      )}
+
+      {/* Loans Given Details Drawer for Selected History Date */}
+      <LoanGivenDrawer
+        open={showLoansDrawer}
+        onClose={() => setShowLoansDrawer(false)}
+        loans={loansData}
+        date={selectedDate}
+        onSelectCustomer={async (cid) => {
+          try {
+            const cust = await getCustomerDetails(cid);
+            setSelectedCustomer(cust);
+            setSelectedCustomerId(cid);
+          } catch (e) {
+            console.error("Failed to load customer", e);
+          }
+        }}
+      />
+
+      {/* Customer Profile Drawer Drilldown */}
+      {selectedCustomer && (
+        <CustomerProfileDrawer
+          open={Boolean(selectedCustomer)}
+          onClose={() => {
+            setSelectedCustomer(null);
+            setSelectedCustomerId(null);
+          }}
+          customer={selectedCustomer}
+          refreshCustomer={async () => {
+            if (selectedCustomerId) {
+              const updated = await getCustomerDetails(selectedCustomerId);
+              setSelectedCustomer(updated);
+            }
+          }}
+          refreshCustomers={() => loadHistory(selectedDate)}
+        />
       )}
     </div>
   );

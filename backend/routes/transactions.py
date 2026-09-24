@@ -524,6 +524,89 @@ def get_not_paid_logic():
 
     return not_paid
 
+
+def get_loans_by_date_logic(selected_date: str):
+    try:
+        # 1. Query customers with loan_date == selected_date and loan_given == True
+        cust_res = (
+            supabase.table("customers")
+            .select("customer_id, name, phone, address, type, loan_amount, interest, net_given, loan_date, due_date, loan_given, place_id, places(name)")
+            .eq("loan_date", selected_date)
+            .eq("loan_given", True)
+            .order("customer_id", desc=True)
+            .execute()
+        )
+        customers = {c["customer_id"]: c for c in (cust_res.data or [])}
+
+        # 2. Check cashbook entries on selected_date where source in ('loan', 'purchase')
+        PAGE_SIZE = 1000
+        all_cb = []
+        page = 0
+        while True:
+            batch = (
+                supabase.table("cashbook")
+                .select("id, amount, source, type, reference_id, date")
+                .in_("source", ["loan", "purchase"])
+                .range(page * PAGE_SIZE, (page + 1) * PAGE_SIZE - 1)
+                .execute()
+                .data or []
+            )
+            all_cb.extend(batch)
+            if len(batch) < PAGE_SIZE:
+                break
+            page += 1
+
+        cb_map = {}
+        for entry in all_cb:
+            entry_date = (entry.get("date") or "")[:10]
+            if entry_date == selected_date and entry.get("reference_id"):
+                ref = str(entry["reference_id"])
+                cb_map[ref] = entry.get("amount", 0)
+                if ref.isdigit() and int(ref) not in customers:
+                    extra_c = (
+                        supabase.table("customers")
+                        .select("customer_id, name, phone, address, type, loan_amount, interest, net_given, loan_date, due_date, loan_given, place_id, places(name)")
+                        .eq("customer_id", int(ref))
+                        .execute()
+                    )
+                    if extra_c.data:
+                        customers[int(ref)] = extra_c.data[0]
+
+        loans_list = []
+        for cid, c in customers.items():
+            cid_str = str(cid)
+            actual_cash = cb_map.get(cid_str, c.get("net_given") or 0)
+            place_info = c.pop("places", None) or {}
+            c["place_name"] = place_info.get("name") or "-"
+            c["cash_deducted"] = actual_cash
+            daily_installment = round((c.get("loan_amount") or 0) / 100) if c.get("type") == "DL" else 0
+            c["daily_installment"] = daily_installment
+            loans_list.append(c)
+
+        # Sort by customer_id descending
+        loans_list.sort(key=lambda x: x.get("customer_id", 0), reverse=True)
+
+        total_loan_amount = sum(l.get("loan_amount", 0) or 0 for l in loans_list)
+        total_cash_deducted = sum(l.get("cash_deducted", 0) or 0 for l in loans_list)
+
+        return {
+            "date": selected_date,
+            "count": len(loans_list),
+            "total_loan_amount": total_loan_amount,
+            "total_cash_deducted": total_cash_deducted,
+            "loans": loans_list
+        }
+    except Exception as e:
+        return {
+            "error": str(e),
+            "date": selected_date,
+            "count": 0,
+            "total_loan_amount": 0,
+            "total_cash_deducted": 0,
+            "loans": []
+        }
+
+
 def get_gaps_logic():
     today = date.today()
 
@@ -605,6 +688,10 @@ def get_dashboard():
     today_expenses = get_today_expenses()
     print("Expenses:", perf_counter() - t)
 
+    t = perf_counter()
+    today_loans = get_loans_by_date_logic(date.today().isoformat())
+    print("Loans:", perf_counter() - t)
+
     print("TOTAL:", perf_counter() - start)
 
     return {
@@ -612,7 +699,8 @@ def get_dashboard():
         "cash": cash,
         "not_paid": not_paid,
         "today_collections": today_collections,
-        "today_expenses": today_expenses
+        "today_expenses": today_expenses,
+        "today_loans": today_loans
     }
 
 
@@ -1275,6 +1363,16 @@ def cash_flow(selected_date: str):
 def get_today_cash_flow():
 
     return calculate_cash_flow(date.today().isoformat())
+
+
+@router.get("/loans-by-date/{selected_date}")
+def loans_by_date(selected_date: str):
+    return get_loans_by_date_logic(selected_date)
+
+
+@router.get("/loans-by-date")
+def loans_today():
+    return get_loans_by_date_logic(date.today().isoformat())
 
 
 # ============================================================

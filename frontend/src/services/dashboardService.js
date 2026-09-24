@@ -43,3 +43,13 @@ export async function addInvestment(data) {
     const response = await api.post("/transactions/add-investment", data);
     return response.data;
 }
+
+export async function getLoansByDate(date) {
+    const response = await api.get(`/transactions/loans-by-date/${date}`);
+    return response.data;
+}
+
+export async function getTodayLoans() {
+    const response = await api.get("/transactions/loans-by-date");
+    return response.data;
+}

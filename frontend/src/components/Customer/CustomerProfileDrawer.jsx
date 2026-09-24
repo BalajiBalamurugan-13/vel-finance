@@ -340,12 +340,13 @@ function CustomerProfileDrawer({
             shadow-lg
             overflow-hidden
         ">
-            {/* Subtle Centered Background Watermark */}
+            {/* Subtle Centered Background Watermark with Golden Glow */}
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-0" aria-hidden="true">
+                <div className="absolute w-52 h-52 rounded-full bg-amber-500/[0.08] blur-[50px] pointer-events-none" />
                 <img
                     src={logoWatermark}
                     alt=""
-                    className="w-56 h-56 max-w-[70%] max-h-[70%] object-contain opacity-[0.14] select-none pointer-events-none transform -translate-x-[4.5%] translate-y-[2%]"
+                    className="w-56 h-56 max-w-[70%] max-h-[70%] object-contain opacity-[0.20] select-none pointer-events-none transform -translate-x-[4.5%] translate-y-[2%] filter drop-shadow-[0_0_25px_rgba(245,158,11,0.5)] drop-shadow-[0_0_50px_rgba(217,119,6,0.3)]"
                 />
             </div>
 

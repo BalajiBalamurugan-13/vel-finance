@@ -45,6 +45,12 @@ const translations = {
       time: "நேரம்",
       date: "தேதி",
       note: "குறிப்பு",
+      loans_given_details: "வழங்கப்பட்ட கடன்கள் விபரம்",
+      view_loans_hint: "விவரம் பார்க்க",
+      no_loans_today: "தேர்ந்தெடுக்கப்பட்ட நாளில் கடன்கள் ஏதும் வழங்கப்படவில்லை.",
+      net_cash_handed: "கையில் கொடுத்தது",
+      deduction: "கழிவு",
+      loan_amount_label: "கடன் தொகை",
     },
 
     // Daily Collection Entry (Quick Entry Mode)
@@ -292,6 +298,12 @@ const translations = {
       time: "Time",
       date: "Date",
       note: "Note",
+      loans_given_details: "Loans Given Details",
+      view_loans_hint: "View Details",
+      no_loans_today: "No loans were given on this date.",
+      net_cash_handed: "Net Cash Given",
+      deduction: "Deduction",
+      loan_amount_label: "Loan Amount",
     },
 
     daily_collection: {
