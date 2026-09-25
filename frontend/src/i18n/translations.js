@@ -83,6 +83,15 @@ const translations = {
       keyboard_hint: "தொகையை உள்ளிட்டு Enter அழுத்தவும்",
       view_profile: "விபரம் பார்க்க",
       print_sheet_link: "வசூல் பட்டியல் தாள் ➔",
+      session_filter: "நேரம்",
+      all_sessions: "அனைத்தும்",
+      morning: "காலை",
+      evening: "மாலை",
+      morning_badge: "🌅 காலை",
+      evening_badge: "🌇 மாலை",
+      morning_session_title: "🌅 காலை வசூல்",
+      evening_session_title: "🌇 மாலை வசூல்",
+      all_session_title: "📋 அனைத்து ஊர்கள்",
     },
 
     // Customers
@@ -174,6 +183,12 @@ const translations = {
       header_balance: "நிலுவை",
       header_sign: "கையொப்பம்",
       page: "பக்கம்",
+      session: "நேரம்",
+      all_sessions: "அனைத்தும்",
+      morning: "🌅 காலை",
+      evening: "🌇 மாலை",
+      morning_sheet_title: "காலை வசூல் பட்டியல்",
+      evening_sheet_title: "மாலை வசூல் பட்டியல்",
     },
 
     // Expenses
@@ -242,6 +257,15 @@ const translations = {
       move: "நகர்த்த",
       saving_order: "வரிசை சேமிக்கப்படுகிறது...",
       reorder_success: "ஊர்களின் வரிசை சேமிக்கப்பட்டது!",
+      session: "நேரம் (Session)",
+      morning: "காலை",
+      evening: "மாலை",
+      all_sessions: "அனைத்தும்",
+      morning_places: "காலை ஊர்கள்",
+      evening_places: "மாலை ஊர்கள்",
+      switch_to_evening: "மாலைக்கு மாற்றுக",
+      switch_to_morning: "காலைக்கு மாற்றுக",
+      session_updated: "ஊரின் நேரம் மாற்றப்பட்டது!",
     },
 
     // Common
@@ -343,6 +367,15 @@ const translations = {
       keyboard_hint: "Type amount and press Enter",
       view_profile: "View Profile",
       print_sheet_link: "Print Collection Sheet ➔",
+      session_filter: "Session",
+      all_sessions: "All",
+      morning: "Morning",
+      evening: "Evening",
+      morning_badge: "🌅 Morning",
+      evening_badge: "🌇 Evening",
+      morning_session_title: "🌅 Morning Collection",
+      evening_session_title: "🌇 Evening Collection",
+      all_session_title: "📋 All Places",
     },
 
     customers: {
@@ -431,6 +464,12 @@ const translations = {
       header_balance: "Balance",
       header_sign: "Sign",
       page: "Page",
+      session: "Session",
+      all_sessions: "All",
+      morning: "🌅 Morning",
+      evening: "🌇 Evening",
+      morning_sheet_title: "Morning Collection Sheet",
+      evening_sheet_title: "Evening Collection Sheet",
     },
 
     expenses: {
@@ -495,6 +534,15 @@ const translations = {
       move: "Move",
       saving_order: "Saving route order...",
       reorder_success: "Place order saved successfully!",
+      session: "Session",
+      morning: "Morning",
+      evening: "Evening",
+      all_sessions: "All",
+      morning_places: "Morning Places",
+      evening_places: "Evening Places",
+      switch_to_evening: "Switch to Evening",
+      switch_to_morning: "Switch to Morning",
+      session_updated: "Place session updated!",
     },
 
     common: {

@@ -36,6 +36,7 @@ export default function DailyCollection() {
     summary: { total_customers: 0, collected_count: 0, total_collected: 0, total_expected_daily: 0 },
   });
   const [selectedPlaceId, setSelectedPlaceId] = useState("all");
+  const [selectedSession, setSelectedSession] = useState("all"); // "all" | "morning" | "evening"
   const [search, setSearch] = useState("");
   const [inputAmounts, setInputAmounts] = useState({});
   const [submittingCid, setSubmittingCid] = useState(null);
@@ -188,9 +189,46 @@ export default function DailyCollection() {
     }
   }
 
-  // Filter customers by selected place and search query
+  // Handle Session Change
+  function handleSelectSession(session) {
+    setSelectedSession(session);
+    setSelectedPlaceId("all");
+  }
+
+  // Compute session stats for morning and evening collections
+  const sessionStats = useMemo(() => {
+    let morningTotal = 0, morningCollected = 0, morningAmt = 0;
+    let eveningTotal = 0, eveningCollected = 0, eveningAmt = 0;
+
+    (sheetData.customers || []).forEach((c) => {
+      const sess = c.place_session || "morning";
+      const isPaid = (c.today_paid || 0) > 0;
+      const amt = c.today_paid || 0;
+
+      if (sess === "morning") {
+        morningTotal += 1;
+        if (isPaid) morningCollected += 1;
+        morningAmt += amt;
+      } else {
+        eveningTotal += 1;
+        if (isPaid) eveningCollected += 1;
+        eveningAmt += amt;
+      }
+    });
+
+    return {
+      morning: { total: morningTotal, collected: morningCollected, amt: morningAmt },
+      evening: { total: eveningTotal, collected: eveningCollected, amt: eveningAmt },
+    };
+  }, [sheetData.customers]);
+
+  // Filter customers by selected session, place and search query
   const displayedCustomers = useMemo(() => {
     let list = sheetData.customers || [];
+
+    if (selectedSession !== "all") {
+      list = list.filter((c) => (c.place_session || "morning") === selectedSession);
+    }
 
     if (selectedPlaceId !== "all") {
       if (selectedPlaceId === "unassigned") {
@@ -213,7 +251,7 @@ export default function DailyCollection() {
     }
 
     return list;
-  }, [sheetData.customers, selectedPlaceId, search]);
+  }, [sheetData.customers, selectedSession, selectedPlaceId, search]);
 
   // Compute place stats for place tabs
   const placeStats = useMemo(() => {
@@ -231,10 +269,12 @@ export default function DailyCollection() {
     return stats;
   }, [sheetData.customers]);
 
-  // Places with customers in priority order
+  // Places with customers in priority order, filtered by session if selected
   const activePlaces = useMemo(() => {
-    return (sheetData.places || []).filter((p) => placeStats[p.id]?.total > 0);
-  }, [sheetData.places, placeStats]);
+    return (sheetData.places || [])
+      .filter((p) => placeStats[p.id]?.total > 0)
+      .filter((p) => (selectedSession === "all" ? true : (p.session || "morning") === selectedSession));
+  }, [sheetData.places, placeStats, selectedSession]);
 
   // Previous and Next place navigation
   const currentPlaceIndex = activePlaces.findIndex((p) => p.id === Number(selectedPlaceId));
@@ -337,8 +377,67 @@ export default function DailyCollection() {
         </div>
       </div>
 
-      {/* Place Filter Bar & Search */}
+      {/* Session Filter Bar, Place Filter Bar & Search */}
       <div className="space-y-3">
+        {/* Morning / Evening / All Session Selector */}
+        <div className="flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            onClick={() => handleSelectSession("all")}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all border ${
+              selectedSession === "all"
+                ? "bg-slate-700 text-white border-slate-600 shadow-md font-bold ring-1 ring-white/20"
+                : "bg-[#111827] text-slate-300 border-slate-800 hover:border-slate-700 hover:text-white"
+            }`}
+          >
+            <span>📋</span>
+            <span>{t("daily_collection.all_sessions")}</span>
+            <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-black/30 text-slate-300 font-bold">
+              {sheetData.summary.collected_count}/{sheetData.summary.total_customers}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSelectSession("morning")}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all border ${
+              selectedSession === "morning"
+                ? "bg-gradient-to-r from-sky-600 to-blue-600 text-white border-sky-400 shadow-md shadow-sky-900/30 font-bold ring-1 ring-sky-300/40"
+                : "bg-[#111827] text-sky-400 border-sky-950/60 hover:border-sky-800 hover:bg-sky-950/30"
+            }`}
+          >
+            <span>🌅</span>
+            <span>{t("daily_collection.morning")}</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                selectedSession === "morning" ? "bg-black/30 text-white" : "bg-sky-950 text-sky-300"
+              }`}
+            >
+              {sessionStats.morning.collected}/{sessionStats.morning.total}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => handleSelectSession("evening")}
+            className={`flex-1 sm:flex-initial flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-xs font-semibold transition-all border ${
+              selectedSession === "evening"
+                ? "bg-gradient-to-r from-amber-600 to-orange-600 text-white border-amber-400 shadow-md shadow-amber-900/30 font-bold ring-1 ring-amber-300/40"
+                : "bg-[#111827] text-amber-400 border-amber-950/60 hover:border-amber-800 hover:bg-amber-950/30"
+            }`}
+          >
+            <span>🌇</span>
+            <span>{t("daily_collection.evening")}</span>
+            <span
+              className={`px-1.5 py-0.5 rounded-full text-[10px] font-bold ${
+                selectedSession === "evening" ? "bg-black/30 text-white" : "bg-amber-950 text-amber-300"
+              }`}
+            >
+              {sessionStats.evening.collected}/{sessionStats.evening.total}
+            </span>
+          </button>
+        </div>
+
         {/* Search Input */}
         <div className="relative">
           <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-500" size={17} />
@@ -369,9 +468,19 @@ export default function DailyCollection() {
                 : "bg-[#111827] text-slate-300 border-slate-800 hover:border-slate-700 hover:text-white"
             }`}
           >
-            <span>{t("daily_collection.all_places")}</span>
+            <span>
+              {selectedSession === "morning"
+                ? `🌅 ${t("daily_collection.morning")}`
+                : selectedSession === "evening"
+                ? `🌇 ${t("daily_collection.evening")}`
+                : t("daily_collection.all_places")}
+            </span>
             <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-black/30 font-bold">
-              {sheetData.summary.collected_count}/{sheetData.summary.total_customers}
+              {selectedSession === "morning"
+                ? `${sessionStats.morning.collected}/${sessionStats.morning.total}`
+                : selectedSession === "evening"
+                ? `${sessionStats.evening.collected}/${sessionStats.evening.total}`
+                : `${sheetData.summary.collected_count}/${sheetData.summary.total_customers}`}
             </span>
           </button>
 
@@ -496,6 +605,17 @@ export default function DailyCollection() {
                         {c.place_name && (
                           <span className="text-[11px] px-2 py-0.5 rounded-md bg-slate-800 text-slate-400 font-medium">
                             {c.place_name}
+                          </span>
+                        )}
+                        {c.place_session && (
+                          <span
+                            className={`text-[10px] px-1.5 py-0.5 rounded font-medium border ${
+                              c.place_session === "evening"
+                                ? "bg-amber-950/60 text-amber-300 border-amber-800/40"
+                                : "bg-sky-950/60 text-sky-300 border-sky-800/40"
+                            }`}
+                          >
+                            {c.place_session === "evening" ? "🌇 " + t("daily_collection.evening") : "🌅 " + t("daily_collection.morning")}
                           </span>
                         )}
                         {c.type === "Furniture" && (

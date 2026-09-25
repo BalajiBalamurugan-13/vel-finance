@@ -19,6 +19,7 @@ import {
   updatePlace,
   deletePlace,
   reorderPlaces,
+  updatePlaceSession,
 } from "../services/placeService";
 import { useLanguage } from "../context/LanguageContext";
 
@@ -28,6 +29,9 @@ function PlaceManagement() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [newName, setNewName] = useState("");
+  const [newSession, setNewSession] = useState("morning");
+  const [filterSession, setFilterSession] = useState("all");
+  const [togglingId, setTogglingId] = useState(null);
   const [adding, setAdding] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [editName, setEditName] = useState("");
@@ -86,14 +90,35 @@ function PlaceManagement() {
     try {
       const maxPriority =
         places.length > 0 ? Math.max(...places.map((p) => p.priority)) : -1;
-      await createPlace({ name, priority: maxPriority + 1 });
+      await createPlace({ name, priority: maxPriority + 1, session: newSession });
       setNewName("");
-      toast.success(`"${name}" added.`);
+      toast.success(`"${name}" (${newSession === "evening" ? (t("places.evening") || "மாலை") : (t("places.morning") || "காலை")}) added.`);
       await loadPlaces();
     } catch (err) {
       toast.error(err.response?.data?.detail || "Failed to add place.");
     } finally {
       setAdding(false);
+    }
+  }
+
+  // ── 1-Click Toggle Session (Morning <-> Evening) ──────────────────────────
+  async function handleToggleSession(place) {
+    const nextSession = place.session === "evening" ? "morning" : "evening";
+    setTogglingId(place.id);
+    // Optimistic update
+    setPlaces((prev) =>
+      prev.map((p) => (p.id === place.id ? { ...p, session: nextSession } : p))
+    );
+    try {
+      await updatePlaceSession(place.id, nextSession);
+      const label = nextSession === "evening" ? (t("places.evening") || "மாலை") : (t("places.morning") || "காலை");
+      toast.success(`${place.name} → ${label}`);
+    } catch (err) {
+      console.error("Failed to toggle session:", err);
+      toast.error("Failed to update session.");
+      await loadPlaces();
+    } finally {
+      setTogglingId(null);
     }
   }
 
@@ -273,9 +298,39 @@ function PlaceManagement() {
 
       {/* Add new place */}
       <div className="bg-[#182238] border border-slate-800 rounded-2xl p-4 sm:p-5 shadow-xl mb-5">
-        <label className="block text-sm font-medium text-slate-300 mb-2">
-          {t("places.add_place")}
-        </label>
+        <div className="flex items-center justify-between gap-2 mb-2.5">
+          <label className="text-sm font-medium text-slate-300">
+            {t("places.add_place")}
+          </label>
+          {/* Morning / Evening Selector for new place */}
+          <div className="inline-flex p-0.5 rounded-lg bg-slate-900 border border-slate-700/80 text-xs">
+            <button
+              type="button"
+              onClick={() => setNewSession("morning")}
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all flex items-center gap-1 ${
+                newSession === "morning"
+                  ? "bg-sky-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <span>🌅</span>
+              <span>{t("places.morning")}</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setNewSession("evening")}
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all flex items-center gap-1 ${
+                newSession === "evening"
+                  ? "bg-amber-600 text-white shadow-sm"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              <span>🌇</span>
+              <span>{t("places.evening")}</span>
+            </button>
+          </div>
+        </div>
+
         <div className="flex gap-2 sm:gap-3">
           <input
             type="text"
@@ -311,14 +366,50 @@ function PlaceManagement() {
 
       {/* Places list */}
       <div className="bg-[#182238] border border-slate-800 rounded-2xl shadow-xl overflow-hidden">
-        <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-slate-800 flex items-center gap-2">
-          <FiMapPin size={16} className="text-emerald-400 shrink-0" />
-          <span className="text-sm font-semibold text-slate-200 truncate">
-            {t("places.priority")}
-          </span>
-          <span className="ml-auto text-xs text-slate-400 shrink-0">
-            {places.length} {t("collection_sheet.places_count")}
-          </span>
+        <div className="px-4 sm:px-5 py-3.5 sm:py-4 border-b border-slate-800 flex flex-wrap items-center justify-between gap-2.5">
+          <div className="flex items-center gap-2">
+            <FiMapPin size={16} className="text-emerald-400 shrink-0" />
+            <span className="text-sm font-semibold text-slate-200">
+              {t("places.priority")}
+            </span>
+          </div>
+
+          {/* Session Filter Tabs */}
+          <div className="inline-flex p-1 rounded-xl bg-slate-900 border border-slate-700/80 text-xs">
+            <button
+              type="button"
+              onClick={() => setFilterSession("all")}
+              className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
+                filterSession === "all"
+                  ? "bg-slate-700 text-white shadow-sm font-bold"
+                  : "text-slate-400 hover:text-white"
+              }`}
+            >
+              📋 {t("places.all_sessions")} ({places.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterSession("morning")}
+              className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
+                filterSession === "morning"
+                  ? "bg-sky-600 text-white shadow-sm font-bold"
+                  : "text-slate-400 hover:text-sky-300"
+              }`}
+            >
+              🌅 {t("places.morning")} ({places.filter((p) => (p.session || "morning") === "morning").length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setFilterSession("evening")}
+              className={`px-2.5 py-1 rounded-lg font-medium transition-all ${
+                filterSession === "evening"
+                  ? "bg-amber-600 text-white shadow-sm font-bold"
+                  : "text-slate-400 hover:text-amber-300"
+              }`}
+            >
+              🌇 {t("places.evening")} ({places.filter((p) => p.session === "evening").length})
+            </button>
+          </div>
         </div>
 
         {loading ? (
@@ -331,151 +422,197 @@ function PlaceManagement() {
             No places yet. Add the first one above.
           </div>
         ) : (
-          <ul
-            className="divide-y divide-slate-800/80"
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-          >
-            {places.map((place, idx) => {
-              const isBeingDragged = draggedIdx === idx;
+          (() => {
+            const displayedPlaces = places.filter((p) =>
+              filterSession === "all" ? true : (p.session || "morning") === filterSession
+            );
 
+            if (displayedPlaces.length === 0) {
               return (
-                <li
-                  key={place.id}
-                  data-place-index={idx}
-                  draggable={editingId !== place.id}
-                  onDragStart={(e) => handleDragStart(e, idx)}
-                  onDragOver={(e) => handleDragOver(e, idx)}
-                  onDragEnd={handleDragEnd}
-                  className={`
-                    flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 sm:py-3.5 min-w-0 transition-all duration-150 select-none
-                    ${
-                      isBeingDragged
-                        ? "bg-slate-800/90 border-y-2 border-emerald-500/80 scale-[1.01] shadow-2xl z-20 opacity-95"
-                        : "hover:bg-slate-800/50"
-                    }
-                  `}
-                >
-                  {/* Touch / Mouse Drag Handle */}
-                  <div
-                    onTouchStart={(e) => handleTouchStart(e, idx)}
-                    title={t("places.drag_hint")}
-                    className="cursor-grab active:cursor-grabbing text-slate-500 hover:text-emerald-400 p-1 -ml-1 rounded-lg touch-none transition-colors shrink-0"
-                  >
-                    <GripVertical size={18} />
-                  </div>
-
-                  {/* Interactive Priority Number Badge (Click to Jump Directly) */}
-                  <button
-                    type="button"
-                    onClick={() => openMoveModal(place, idx)}
-                    title={`${t("places.move_to")} (Click to move anywhere)`}
-                    className="
-                      min-w-[28px] sm:min-w-[32px] h-7 px-1.5 rounded-lg
-                      bg-slate-800/90 hover:bg-emerald-600/30 hover:border-emerald-500/50
-                      border border-slate-700/70 text-slate-300 hover:text-emerald-300
-                      font-bold text-xs flex items-center justify-center gap-0.5
-                      transition-all active:scale-95 shrink-0 shadow-sm
-                    "
-                  >
-                    <span>{idx + 1}</span>
-                  </button>
-
-                  {/* Name / Edit Input */}
-                  {editingId === place.id ? (
-                    <input
-                      autoFocus
-                      value={editName}
-                      onChange={(e) => setEditName(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") commitEdit(place);
-                        if (e.key === "Escape") cancelEdit();
-                      }}
-                      className="min-w-0 flex-1 bg-[#0f172a] border border-slate-600 rounded-lg px-2.5 sm:px-3 py-1.5 text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
-                    />
-                  ) : (
-                    <span
-                      onClick={() => openMoveModal(place, idx)}
-                      className="min-w-0 flex-1 text-white font-medium text-sm sm:text-base truncate cursor-pointer hover:text-emerald-300 transition-colors"
-                      title={place.name}
-                    >
-                      {place.name}
-                    </span>
-                  )}
-
-                  {/* Action buttons */}
-                  <div className="flex items-center gap-0.5 sm:gap-1 shrink-0">
-                    {editingId === place.id ? (
-                      <>
-                        <button
-                          onClick={() => commitEdit(place)}
-                          disabled={saving}
-                          title="Save name"
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-emerald-400 hover:bg-emerald-500/20 transition shrink-0"
-                        >
-                          <FiCheck size={14} />
-                        </button>
-                        <button
-                          onClick={cancelEdit}
-                          title="Cancel"
-                          className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-700 transition shrink-0"
-                        >
-                          <FiX size={14} />
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        onClick={() => startEdit(place)}
-                        title="Rename"
-                        className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition shrink-0"
-                      >
-                        <FiEdit2 size={13} />
-                      </button>
-                    )}
-
-                    {/* Quick Move To Position Button */}
-                    <button
-                      onClick={() => openMoveModal(place, idx)}
-                      title={t("places.move_to")}
-                      className="w-7 h-7 flex items-center justify-center rounded-lg text-emerald-400/80 hover:text-emerald-300 hover:bg-emerald-500/20 transition shrink-0"
-                    >
-                      <FiCornerDownRight size={13} />
-                    </button>
-
-                    {/* Move Up 1 Step */}
-                    <button
-                      onClick={() => moveUp(idx)}
-                      disabled={idx === 0 || saving}
-                      title="Move up 1"
-                      className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-20 disabled:cursor-not-allowed transition shrink-0"
-                    >
-                      <FiArrowUp size={13} />
-                    </button>
-
-                    {/* Move Down 1 Step */}
-                    <button
-                      onClick={() => moveDown(idx)}
-                      disabled={idx === places.length - 1 || saving}
-                      title="Move down 1"
-                      className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-20 disabled:cursor-not-allowed transition shrink-0"
-                    >
-                      <FiArrowDown size={13} />
-                    </button>
-
-                    {/* Delete */}
-                    <button
-                      onClick={() => handleDelete(place)}
-                      disabled={saving}
-                      title="Delete"
-                      className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 disabled:opacity-20 disabled:cursor-not-allowed transition shrink-0"
-                    >
-                      <FiTrash2 size={13} />
-                    </button>
-                  </div>
-                </li>
+                <div className="px-5 py-8 text-center text-slate-400 text-sm">
+                  {filterSession === "evening"
+                    ? `${t("places.evening")} - ஊர்கள் ஏதும் ஒதுக்கப்படவில்லை`
+                    : `${t("places.morning")} - ஊர்கள் ஏதும் ஒதுக்கப்படவில்லை`}
+                </div>
               );
-            })}
-          </ul>
+            }
+
+            return (
+              <ul
+                className="divide-y divide-slate-800/80"
+                onTouchMove={filterSession === "all" ? handleTouchMove : undefined}
+                onTouchEnd={filterSession === "all" ? handleTouchEnd : undefined}
+              >
+                {displayedPlaces.map((place) => {
+                  const fullIdx = places.findIndex((p) => p.id === place.id);
+                  const isBeingDragged = draggedIdx === fullIdx;
+
+                  return (
+                    <li
+                      key={place.id}
+                      data-place-index={fullIdx}
+                      draggable={filterSession === "all" && editingId !== place.id}
+                      onDragStart={(e) => handleDragStart(e, fullIdx)}
+                      onDragOver={(e) => handleDragOver(e, fullIdx)}
+                      onDragEnd={handleDragEnd}
+                      className={`
+                        flex items-center gap-2 sm:gap-3 px-3 sm:px-5 py-3 sm:py-3.5 min-w-0 transition-all duration-150 select-none
+                        ${
+                          isBeingDragged
+                            ? "bg-slate-800/90 border-y-2 border-emerald-500/80 scale-[1.01] shadow-2xl z-20 opacity-95"
+                            : "hover:bg-slate-800/50"
+                        }
+                      `}
+                    >
+                      {/* Touch / Mouse Drag Handle */}
+                      <div
+                        onTouchStart={(e) => filterSession === "all" && handleTouchStart(e, fullIdx)}
+                        title={filterSession === "all" ? t("places.drag_hint") : t("places.all_sessions")}
+                        className={`p-1 -ml-1 rounded-lg shrink-0 transition-colors ${
+                          filterSession === "all"
+                            ? "cursor-grab active:cursor-grabbing text-slate-500 hover:text-emerald-400 touch-none"
+                            : "text-slate-600 cursor-not-allowed opacity-40"
+                        }`}
+                      >
+                        <GripVertical size={18} />
+                      </div>
+
+                      {/* Interactive Priority Number Badge (Click to Jump Directly) */}
+                      <button
+                        type="button"
+                        onClick={() => openMoveModal(place, fullIdx)}
+                        title={`${t("places.move_to")} (Click to move anywhere)`}
+                        className="
+                          min-w-[28px] sm:min-w-[32px] h-7 px-1.5 rounded-lg
+                          bg-slate-800/90 hover:bg-emerald-600/30 hover:border-emerald-500/50
+                          border border-slate-700/70 text-slate-300 hover:text-emerald-300
+                          font-bold text-xs flex items-center justify-center gap-0.5
+                          transition-all active:scale-95 shrink-0 shadow-sm
+                        "
+                      >
+                        <span>{fullIdx + 1}</span>
+                      </button>
+
+                      {/* Name / Edit Input */}
+                      {editingId === place.id ? (
+                        <input
+                          autoFocus
+                          value={editName}
+                          onChange={(e) => setEditName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") commitEdit(place);
+                            if (e.key === "Escape") cancelEdit();
+                          }}
+                          className="min-w-0 flex-1 bg-[#0f172a] border border-slate-600 rounded-lg px-2.5 sm:px-3 py-1.5 text-white text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                        />
+                      ) : (
+                        <span
+                          onClick={() => openMoveModal(place, fullIdx)}
+                          className="min-w-0 flex-1 text-white font-medium text-sm sm:text-base truncate cursor-pointer hover:text-emerald-300 transition-colors"
+                          title={place.name}
+                        >
+                          {place.name}
+                        </span>
+                      )}
+
+                      {/* Action buttons & 1-Click Session Badge */}
+                      <div className="flex items-center gap-1.5 sm:gap-2 shrink-0">
+                        {/* Session Toggle Badge */}
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleToggleSession(place);
+                          }}
+                          disabled={togglingId === place.id}
+                          title={place.session === "evening" ? t("places.switch_to_morning") : t("places.switch_to_evening")}
+                          className={`
+                            px-2 sm:px-2.5 py-1 rounded-lg text-[11px] sm:text-xs font-bold transition-all flex items-center gap-1 shrink-0
+                            ${
+                              place.session === "evening"
+                                ? "bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/40 hover:border-amber-400 shadow-sm"
+                                : "bg-sky-500/15 hover:bg-sky-500/25 text-sky-300 border border-sky-500/40 hover:border-sky-400 shadow-sm"
+                            }
+                            active:scale-95 cursor-pointer
+                          `}
+                        >
+                          <span className="text-xs">{place.session === "evening" ? "🌇" : "🌅"}</span>
+                          <span>{place.session === "evening" ? t("places.evening") : t("places.morning")}</span>
+                        </button>
+
+                        {editingId === place.id ? (
+                          <>
+                            <button
+                              onClick={() => commitEdit(place)}
+                              disabled={saving}
+                              title="Save name"
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-emerald-400 hover:bg-emerald-500/20 transition shrink-0"
+                            >
+                              <FiCheck size={14} />
+                            </button>
+                            <button
+                              onClick={cancelEdit}
+                              title="Cancel"
+                              className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:bg-slate-700 transition shrink-0"
+                            >
+                              <FiX size={14} />
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            onClick={() => startEdit(place)}
+                            title="Rename"
+                            className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 transition shrink-0"
+                          >
+                            <FiEdit2 size={13} />
+                          </button>
+                        )}
+
+                        {/* Quick Move To Position Button */}
+                        <button
+                          onClick={() => openMoveModal(place, fullIdx)}
+                          title={t("places.move_to")}
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-emerald-400/80 hover:text-emerald-300 hover:bg-emerald-500/20 transition shrink-0"
+                        >
+                          <FiCornerDownRight size={13} />
+                        </button>
+
+                        {/* Move Up 1 Step */}
+                        <button
+                          onClick={() => moveUp(fullIdx)}
+                          disabled={fullIdx === 0 || saving}
+                          title="Move up 1"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-20 disabled:cursor-not-allowed transition shrink-0"
+                        >
+                          <FiArrowUp size={13} />
+                        </button>
+
+                        {/* Move Down 1 Step */}
+                        <button
+                          onClick={() => moveDown(fullIdx)}
+                          disabled={fullIdx === places.length - 1 || saving}
+                          title="Move down 1"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-white hover:bg-slate-700 disabled:opacity-20 disabled:cursor-not-allowed transition shrink-0"
+                        >
+                          <FiArrowDown size={13} />
+                        </button>
+
+                        {/* Delete */}
+                        <button
+                          onClick={() => handleDelete(place)}
+                          disabled={saving}
+                          title="Delete"
+                          className="w-7 h-7 flex items-center justify-center rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 disabled:opacity-20 disabled:cursor-not-allowed transition shrink-0"
+                        >
+                          <FiTrash2 size={13} />
+                        </button>
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            );
+          })()
         )}
       </div>
 

@@ -3,6 +3,7 @@ from backend.routes import customers, transactions, expenses, places
 from fastapi.middleware.cors import CORSMiddleware
 
 backend = FastAPI()
+app = backend
 backend.add_middleware(
     CORSMiddleware,
     allow_origins=[

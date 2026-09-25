@@ -45,3 +45,14 @@ export async function reorderPlaces(items) {
     const response = await api.put("/places/reorder", { items });
     return response.data;
 }
+
+/**
+ * Quick update of a place's session ('morning' | 'evening').
+ * @param {number} id
+ * @param {string} session
+ */
+export async function updatePlaceSession(id, session) {
+    const response = await api.put(`/places/${id}/session`, { session });
+    return response.data;
+}
+

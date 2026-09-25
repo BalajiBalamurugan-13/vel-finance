@@ -169,6 +169,7 @@ function CollectionSheet() {
   const { t } = useLanguage();
   const today = toInputDate(new Date());
   const [selectedDate, setSelectedDate] = useState(today);
+  const [selectedSession, setSelectedSession] = useState("all"); // "all" | "morning" | "evening"
   const [rawCustomers, setRawCustomers] = useState([]);
   const [places, setPlaces]             = useState([]);
   const [loading, setLoading]           = useState(true);
@@ -195,6 +196,15 @@ function CollectionSheet() {
 
   useEffect(() => { loadData(); }, []);
 
+  // Place session lookup map
+  const placeSessionMap = useMemo(() => {
+    const map = {};
+    places.forEach((p) => {
+      map[p.id] = p.session || "morning";
+    });
+    return map;
+  }, [places]);
+
   // Filter active customers for selected collection date:
   // 1. loan_given === true
   // 2. balance > 0
@@ -208,8 +218,22 @@ function CollectionSheet() {
     });
   }, [rawCustomers, selectedDate]);
 
-  // Build the row stream and paginate
-  const rowStream = buildRowStream(places, customers);
+  // Session-filtered places & customers
+  const filteredPlaces = useMemo(() => {
+    if (selectedSession === "all") return places;
+    return places.filter((p) => (p.session || "morning") === selectedSession);
+  }, [places, selectedSession]);
+
+  const filteredCustomers = useMemo(() => {
+    if (selectedSession === "all") return customers;
+    return customers.filter((c) => {
+      const sess = placeSessionMap[c.place_id] || "morning";
+      return sess === selectedSession;
+    });
+  }, [customers, selectedSession, placeSessionMap]);
+
+  // Build the row stream and paginate based on active session
+  const rowStream = buildRowStream(filteredPlaces, filteredCustomers);
   const pages     = paginateStream(rowStream);
 
   const displayDate = toDisplayDate(selectedDate);
@@ -217,9 +241,10 @@ function CollectionSheet() {
   function handlePrint() {
     const originalTitle = document.title;
     const dateFormatted = toDisplayDate(selectedDate);
+    const sessionTag = selectedSession === "morning" ? " - Morning" : selectedSession === "evening" ? " - Evening" : "";
     document.title = dateFormatted
-      ? `VEL Finance - Daily Collection - ${dateFormatted}`
-      : "VEL Finance - Daily Collection";
+      ? `VEL Finance - Daily Collection${sessionTag} - ${dateFormatted}`
+      : `VEL Finance - Daily Collection${sessionTag}`;
 
     const restoreTitle = () => {
       document.title = originalTitle;
@@ -235,8 +260,8 @@ function CollectionSheet() {
   }
 
   // Screen-side summary
-  const assignedCount   = customers.filter((c) => c.place_id != null).length;
-  const unassignedCount = customers.length - assignedCount;
+  const assignedCount   = filteredCustomers.filter((c) => c.place_id != null).length;
+  const unassignedCount = filteredCustomers.length - assignedCount;
 
   return (
     <>
@@ -271,22 +296,65 @@ function CollectionSheet() {
             />
           </div>
 
+          {/* Session Selector Pills */}
+          <div>
+            <label className="flex items-center gap-2 text-sm font-medium text-slate-300 mb-2">
+              <span>⏰</span>
+              {t("collection_sheet.session") || "நேரம்"}
+            </label>
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => setSelectedSession("all")}
+                className={`py-2.5 px-3 rounded-xl text-xs font-semibold border transition-all text-center ${
+                  selectedSession === "all"
+                    ? "bg-slate-700 text-white border-slate-500 shadow-md font-bold"
+                    : "bg-[#0f172a] text-slate-400 border-slate-700/80 hover:text-white"
+                }`}
+              >
+                📋 {t("collection_sheet.all_sessions")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedSession("morning")}
+                className={`py-2.5 px-3 rounded-xl text-xs font-semibold border transition-all text-center ${
+                  selectedSession === "morning"
+                    ? "bg-sky-600 text-white border-sky-400 shadow-md shadow-sky-950 font-bold"
+                    : "bg-[#0f172a] text-sky-400 border-sky-900/50 hover:bg-sky-950/30"
+                }`}
+              >
+                {t("collection_sheet.morning")}
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedSession("evening")}
+                className={`py-2.5 px-3 rounded-xl text-xs font-semibold border transition-all text-center ${
+                  selectedSession === "evening"
+                    ? "bg-amber-600 text-white border-amber-400 shadow-md shadow-amber-950 font-bold"
+                    : "bg-[#0f172a] text-amber-400 border-amber-900/50 hover:bg-amber-950/30"
+                }`}
+              >
+                {t("collection_sheet.evening")}
+              </button>
+            </div>
+          </div>
+
           {!loading && !error && (
             <div className="space-y-2">
               <div className="flex items-center gap-2 text-sm text-slate-400">
                 <FiUsers size={15} />
                 <span>
-                  <span className="text-emerald-400 font-semibold">{customers.length}</span>{" "}
+                  <span className="text-emerald-400 font-semibold">{filteredCustomers.length}</span>{" "}
                   {t("collection_sheet.total_active")} &middot;{" "}
                   <span className="text-emerald-400 font-semibold">{pages.length}</span>{" "}
                   {t("collection_sheet.page")}
                 </span>
               </div>
-              {places.length > 0 && (
+              {filteredPlaces.length > 0 && (
                 <div className="flex items-center gap-2 text-sm text-slate-400">
                   <FiMapPin size={15} />
                   <span>
-                    <span className="text-sky-400 font-semibold">{places.length}</span> {t("collection_sheet.places_count")}
+                    <span className="text-sky-400 font-semibold">{filteredPlaces.length}</span> {t("collection_sheet.places_count")}
                     {unassignedCount > 0 && (
                       <span className="text-amber-400"> &middot; {unassignedCount} unassigned</span>
                     )}
@@ -341,7 +409,9 @@ function CollectionSheet() {
               </div>
 
               <div className="print-header">
-                <div className="print-title">VEL FINANCE</div>
+                <div className="print-title">
+                  VEL FINANCE{selectedSession === "morning" ? " (MORNING / காலை)" : selectedSession === "evening" ? " (EVENING / மாலை)" : ""}
+                </div>
                 <div className="print-date">DATE: {displayDate.toUpperCase()}</div>
                 <div className="print-page-num">{pageIdx + 1}</div>
               </div>

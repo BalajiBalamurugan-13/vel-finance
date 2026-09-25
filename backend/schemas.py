@@ -48,11 +48,17 @@ class ExpenseCreate(BaseModel):
 class PlaceCreate(BaseModel):
     name: str
     priority: int = 0
+    session: Optional[str] = "morning"
 
 
 class PlaceUpdate(BaseModel):
     name: Optional[str] = None
     priority: Optional[int] = None
+    session: Optional[str] = None
+
+
+class PlaceSessionUpdate(BaseModel):
+    session: str
 
 
 class PlaceReorderItem(BaseModel):

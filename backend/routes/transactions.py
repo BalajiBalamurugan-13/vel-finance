@@ -5,6 +5,7 @@ from datetime import date
 from datetime import datetime, timedelta
 from time import perf_counter
 from backend.routes.customers import get_closed_customer_ids
+from backend.routes.places import get_place_sessions
 
 
 
@@ -300,6 +301,9 @@ def get_daily_sheet(selected_date: str):
             .execute()
         )
         places = places_res.data or []
+        sessions = get_place_sessions()
+        for p in places:
+            p["session"] = sessions.get(str(p["id"]), "morning")
 
         # 2. Fetch all customers
         cust_res = (
@@ -395,6 +399,7 @@ def get_daily_sheet(selected_date: str):
             place_info = c.pop("places", None) or {}
             c["place_name"] = place_info.get("name")
             c["place_priority"] = place_info.get("priority") if place_info.get("priority") is not None else 999
+            c["place_session"] = sessions.get(str(c.get("place_id")), "morning")
 
             loan_amount = c.get("loan_amount") or 0
             total_paid = paid_map.get(cid, 0)
