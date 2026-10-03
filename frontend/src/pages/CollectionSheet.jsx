@@ -7,6 +7,7 @@ import PageHeader from "../components/PageHeader";
 import { FiPrinter, FiRefreshCw, FiCalendar, FiUsers, FiMapPin, FiCheckSquare } from "react-icons/fi";
 import { useLanguage } from "../context/LanguageContext";
 import logoWatermark from "../assets/Vel finance logo white.png";
+import { calculateDLDailyInstallment } from "../utils/loanCalculations";
 
 // ─── Date Utilities ────────────────────────────────────────────────────────
 
@@ -28,15 +29,14 @@ function toDisplayDate(isoStr) {
 }
 
 // ─── DL Daily Collection Amount ─────────────────────────────────────────────
-// Source of truth: AddCustomer.jsx calculateLoanDetails()
-//   dailyCollection = loan_amount / 100  (DL only)
+// Source of truth: utils/loanCalculations.js (calculateDLDailyInstallment)
+//   <= 5000: 50, <= 10000: 100, > 10000: round(amount / 100)
 // Furniture customers: blank cell — collector writes manually.
 
 function getDailyAmount(customer) {
   if (customer.type !== "DL") return "";
-  const loanAmount = Number(customer.loan_amount) || 0;
-  if (loanAmount <= 0) return "";
-  return String(Math.round(loanAmount / 100));
+  const installment = calculateDLDailyInstallment(customer.loan_amount);
+  return installment > 0 ? String(installment) : "";
 }
 
 // ─── A4 Landscape Layout Constants ──────────────────────────────────────────
@@ -209,11 +209,11 @@ function CollectionSheet() {
   // 1. loan_given === true
   // 2. balance > 0
   // 3. not closed
-  // 4. loan_date must be BEFORE selectedDate (installment collection begins the day AFTER loan disbursement)
+  // 4. loan_date must be on or before selectedDate (exclude future loans)
   const customers = useMemo(() => {
     return rawCustomers.filter((c) => {
       if (!c.loan_given || c.is_closed || Number(c.balance) <= 0) return false;
-      if (c.loan_date && c.loan_date >= selectedDate) return false;
+      if (c.loan_date && c.loan_date > selectedDate) return false;
       return true;
     });
   }, [rawCustomers, selectedDate]);

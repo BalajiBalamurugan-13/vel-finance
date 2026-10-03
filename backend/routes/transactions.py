@@ -1,6 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from backend.db import supabase
-from backend.schemas import TransactionCreate, InvestmentCreate
+from backend.schemas import TransactionCreate, InvestmentCreate, TransactionUpdate
 from datetime import date
 from datetime import datetime, timedelta
 from time import perf_counter
@@ -10,6 +10,28 @@ from backend.routes.places import get_place_sessions
 
 
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
+
+
+def calculate_dl_daily_installment(loan_amount) -> int:
+    """
+    Tiered DL Daily Collection Rule:
+    - <= 0: 0
+    - ₹1 to ₹5,000: Flat ₹50 / day
+    - ₹5,001 to ₹10,000: Flat ₹100 / day
+    - > ₹10,000: round(amount / 100)
+    """
+    try:
+        amt = float(loan_amount or 0)
+    except (ValueError, TypeError):
+        return 0
+    if amt <= 0:
+        return 0
+    if amt <= 5000:
+        return 50
+    elif amt <= 10000:
+        return 100
+    else:
+        return round(amt / 100)
 
 
 @router.post("/add")
@@ -81,13 +103,17 @@ def get_customer_balance(customer_id: int):
     customer = customer_res.data[0]
     place_info = customer.get("places") or {}
 
-    # 2. Get transactions
+    # 2. Get transactions (include id for editing, newest first)
     txn_res = supabase.table("transactions") \
-        .select("amount_paid,payment_date") \
+        .select("id,amount_paid,payment_date,created_at") \
         .eq("customer_id", customer_id) \
+        .order("payment_date", desc=True) \
+        .order("id", desc=True) \
         .execute()
 
-    transactions = txn_res.data
+    transactions = txn_res.data or []
+    # Explicitly ensure newest first
+    transactions.sort(key=lambda t: (t.get("payment_date") or "", t.get("id") or 0), reverse=True)
 
     # 3. Total paid (SAFE)
     total_paid = sum(t.get("amount_paid", 0) or 0 for t in transactions)
@@ -412,11 +438,7 @@ def get_daily_sheet(selected_date: str):
             if balance <= 0 and today_paid == 0:
                 continue
 
-            daily_installment = 0
-            if c.get("type") == "DL":
-                daily_installment = round(loan_amount / 100) if loan_amount > 0 else 0
-            else:
-                daily_installment = 0
+            daily_installment = calculate_dl_daily_installment(loan_amount) if c.get("type") == "DL" else 0
 
             c["balance"] = balance
             c["total_paid"] = total_paid
@@ -491,6 +513,112 @@ def delete_transaction(transaction_id: int):
         return {"message": "Transaction deleted successfully"}
     except Exception as e:
         return {"error": str(e)}
+
+
+@router.put("/update/{transaction_id}")
+def update_transaction(transaction_id: int, data: TransactionUpdate):
+    try:
+        # 1. Fetch existing transaction
+        tx_res = (
+            supabase.table("transactions")
+            .select("*")
+            .eq("id", transaction_id)
+            .execute()
+        )
+        if not tx_res.data:
+            raise HTTPException(status_code=404, detail="Transaction not found")
+
+        old_tx = tx_res.data[0]
+        cid = old_tx.get("customer_id")
+        old_amt = old_tx.get("amount_paid")
+        old_date = old_tx.get("payment_date")
+
+        new_amt = data.amount_paid
+        new_date = data.payment_date
+
+        if new_amt <= 0:
+            raise HTTPException(status_code=400, detail="Amount must be greater than zero")
+
+        # 2. Update transaction in transactions table
+        supabase.table("transactions").update({
+            "amount_paid": new_amt,
+            "payment_date": new_date
+        }).eq("id", transaction_id).execute()
+
+        # 3. Synchronize matching cashbook entry
+        try:
+            cb_res = (
+                supabase.table("cashbook")
+                .select("id")
+                .eq("type", "credit")
+                .eq("source", "collection")
+                .eq("reference_id", str(cid))
+                .eq("amount", old_amt)
+                .like("date", f"{old_date}%")
+                .limit(1)
+                .execute()
+            )
+            if cb_res.data:
+                cb_id = cb_res.data[0]["id"]
+                supabase.table("cashbook").update({
+                    "amount": new_amt,
+                    "date": new_date
+                }).eq("id", cb_id).execute()
+            else:
+                # Fallback: match by reference_id and old_date
+                fallback_cb = (
+                    supabase.table("cashbook")
+                    .select("id")
+                    .eq("type", "credit")
+                    .eq("source", "collection")
+                    .eq("reference_id", str(cid))
+                    .like("date", f"{old_date}%")
+                    .limit(1)
+                    .execute()
+                )
+                if fallback_cb.data:
+                    cb_id = fallback_cb.data[0]["id"]
+                    supabase.table("cashbook").update({
+                        "amount": new_amt,
+                        "date": new_date
+                    }).eq("id", cb_id).execute()
+        except Exception as cb_err:
+            print("Cashbook sync warning:", cb_err)
+
+        # 4. Check & update customer ready_to_close flag
+        try:
+            cust_res = (
+                supabase.table("customers")
+                .select("loan_amount")
+                .eq("customer_id", cid)
+                .execute()
+            )
+            if cust_res.data:
+                loan_amt = cust_res.data[0].get("loan_amount") or 0
+                all_tx = (
+                    supabase.table("transactions")
+                    .select("amount_paid")
+                    .eq("customer_id", cid)
+                    .execute()
+                )
+                total_paid = sum(t.get("amount_paid", 0) or 0 for t in (all_tx.data or []))
+                supabase.table("customers").update({
+                    "ready_to_close": total_paid >= loan_amt
+                }).eq("customer_id", cid).execute()
+        except Exception as cust_err:
+            print("Customer ready_to_close update warning:", cust_err)
+
+        return {
+            "message": "Transaction updated successfully",
+            "id": transaction_id,
+            "customer_id": cid,
+            "amount_paid": new_amt,
+            "payment_date": new_date
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 def get_not_paid_logic():
@@ -584,7 +712,7 @@ def get_loans_by_date_logic(selected_date: str):
             place_info = c.pop("places", None) or {}
             c["place_name"] = place_info.get("name") or "-"
             c["cash_deducted"] = actual_cash
-            daily_installment = round((c.get("loan_amount") or 0) / 100) if c.get("type") == "DL" else 0
+            daily_installment = calculate_dl_daily_installment(c.get("loan_amount")) if c.get("type") == "DL" else 0
             c["daily_installment"] = daily_installment
             loans_list.append(c)
 

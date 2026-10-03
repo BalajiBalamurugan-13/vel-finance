@@ -19,10 +19,21 @@ function ViewCustomer() {
   const [selectedPlace, setSelectedPlace] = useState("all");
   const [selectedCustomer, setSelectedCustomer] = useState(null);
   const [customerDetails, setCustomerDetails] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   async function loadCustomers() {
-    const data = await getCustomers();
-    setCustomers(data);
+    setLoading(true);
+    setLoadError(null);
+    try {
+      const data = await getCustomers();
+      setCustomers(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Failed to load customers:", err);
+      setLoadError("Failed to load customers. Please check your connection and retry.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   useEffect(() => {
@@ -189,7 +200,7 @@ function ViewCustomer() {
                 statusFilter === tab.key ? "bg-slate-700 text-white" : "bg-slate-900 " + tab.color
               }`}
             >
-              {tab.count}
+              {loading ? "..." : tab.count}
             </span>
           </button>
         ))}
@@ -197,14 +208,33 @@ function ViewCustomer() {
 
       {/* Customer List */}
       <div className="space-y-3">
-        {sortedCustomers.map((customer) => (
-          <CustomerCard
-            key={customer.customer_id}
-            customer={customer}
-            onClick={() => openCustomer(customer.customer_id)}
-          />
-        ))}
-        {sortedCustomers.length === 0 && (
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 bg-[#0f172a]/50 rounded-2xl border border-slate-800/80">
+            <div className="w-10 h-10 border-4 border-emerald-500/20 border-t-emerald-500 rounded-full animate-spin mb-3"></div>
+            <p className="text-slate-400 text-sm font-medium">
+              {t("customers.loading_customers") || "Loading customers..."}
+            </p>
+          </div>
+        ) : loadError ? (
+          <div className="text-center py-16 bg-[#0f172a]/50 rounded-2xl border border-slate-800/80 space-y-3">
+            <p className="text-rose-400 font-medium">{loadError}</p>
+            <button
+              type="button"
+              onClick={loadCustomers}
+              className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white rounded-xl text-sm font-medium border border-slate-700 transition-all cursor-pointer"
+            >
+              Retry
+            </button>
+          </div>
+        ) : sortedCustomers.length > 0 ? (
+          sortedCustomers.map((customer) => (
+            <CustomerCard
+              key={customer.customer_id}
+              customer={customer}
+              onClick={() => openCustomer(customer.customer_id)}
+            />
+          ))
+        ) : (
           <div className="text-center text-gray-400 py-16 bg-[#0f172a]/50 rounded-2xl border border-slate-800/80">
             {t("customers.no_customers")}
           </div>

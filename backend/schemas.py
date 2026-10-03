@@ -39,6 +39,11 @@ class TransactionCreate(BaseModel):
     payment_date: str
 
 
+class TransactionUpdate(BaseModel):
+    amount_paid: int
+    payment_date: str
+
+
 class ExpenseCreate(BaseModel):
     amount: int
     note: str

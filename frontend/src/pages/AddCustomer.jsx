@@ -5,6 +5,7 @@ import { getPlaces } from "../services/placeService";
 import { toast } from "react-toastify";
 import { Loader2 } from "lucide-react";
 import { useLanguage } from "../context/LanguageContext";
+import { calculateDLDailyInstallment } from "../utils/loanCalculations";
 
 function AddCustomer() {
   const { t } = useLanguage();
@@ -70,7 +71,7 @@ function AddCustomer() {
         interest = Math.round((amount * 12) / 100 + 100);
       }
 
-      dailyCollection = amount > 0 ? amount / 100 : 0;
+      dailyCollection = calculateDLDailyInstallment(amount);
 
       if (loanDate) {
         const date = new Date(loanDate);

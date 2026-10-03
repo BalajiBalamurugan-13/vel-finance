@@ -40,3 +40,11 @@ export async function deletePayment(transactionId) {
     );
     return response.data;
 }
+
+export async function updatePayment(transactionId, data) {
+    const response = await api.put(
+        `/transactions/update/${transactionId}`,
+        data
+    );
+    return response.data;
+}

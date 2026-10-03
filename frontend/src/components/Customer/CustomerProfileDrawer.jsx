@@ -1,6 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import DetailDrawer from "../DetailDrawer";
-import { addPayment } from "../../services/transactionService";
+import { addPayment, updatePayment } from "../../services/transactionService";
 import { toast } from "react-toastify";
 import ConfirmDialog from "../ConfirmDialog";
 import {
@@ -13,6 +13,7 @@ import {
 import { getPlaces } from "../../services/placeService";
 import { useLanguage } from "../../context/LanguageContext";
 import logoWatermark from "../../assets/Vel finance logo white.png";
+import { calculateDLDailyInstallment } from "../../utils/loanCalculations";
 
 
 function CustomerProfileDrawer({
@@ -51,6 +52,68 @@ function CustomerProfileDrawer({
         loan_amount: "",
         loan_date: ""
     });
+
+    // Recent Payments Date Sorting & Editing State (Newest collections first by default)
+    const [sortNewestFirst, setSortNewestFirst] = useState(true);
+    const [editingTxId, setEditingTxId] = useState(null);
+    const [editTxAmount, setEditTxAmount] = useState("");
+    const [editTxDate, setEditTxDate] = useState("");
+    const [savingTx, setSavingTx] = useState(false);
+
+    const sortedTransactions = useMemo(() => {
+        const list = [...(customer?.transactions || [])];
+        return list.sort((a, b) => {
+            const dateA = a.payment_date || "";
+            const dateB = b.payment_date || "";
+            const cmp = dateB.localeCompare(dateA); // Positive = dateB (newer) comes before dateA (older)
+            if (cmp !== 0) return sortNewestFirst ? cmp : -cmp;
+            const idCmp = (b.id || 0) - (a.id || 0);
+            return sortNewestFirst ? idCmp : -idCmp;
+        });
+    }, [customer?.transactions, sortNewestFirst]);
+
+    function startEditTx(txn) {
+        setEditingTxId(txn.id);
+        setEditTxAmount(String(txn.amount_paid));
+        setEditTxDate(txn.payment_date || "");
+    }
+
+    function cancelEditTx() {
+        setEditingTxId(null);
+        setEditTxAmount("");
+        setEditTxDate("");
+    }
+
+    async function handleSaveTx(transactionId) {
+        const numAmt = Number(editTxAmount);
+        if (!numAmt || numAmt <= 0) {
+            toast.warning("Please enter a valid payment amount.");
+            return;
+        }
+        if (!editTxDate) {
+            toast.warning("Please select a payment date.");
+            return;
+        }
+
+        setSavingTx(true);
+        try {
+            await updatePayment(transactionId, {
+                amount_paid: numAmt,
+                payment_date: editTxDate,
+            });
+            toast.success("Payment updated successfully!");
+            setEditingTxId(null);
+            await refreshCustomer(customer.customer_id, false);
+            if (refreshCustomers) {
+                await refreshCustomers();
+            }
+        } catch (err) {
+            console.error(err);
+            toast.error(err.response?.data?.detail || "Failed to update payment.");
+        } finally {
+            setSavingTx(false);
+        }
+    }
 
     useEffect(() => {
         getPlaces()
@@ -377,6 +440,56 @@ function CustomerProfileDrawer({
                 </div>
             )}
 
+            {/* Customer Details Header with Quick Edit button */}
+            <div className="flex items-center justify-between pb-2 border-b border-slate-700/60">
+                <span className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                    <span>👤</span>
+                    <span>{t("customers.details") || "விவரங்கள்"}</span>
+                </span>
+
+                {isEditing ? (
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            onClick={handleUpdateCustomer}
+                            className="flex items-center gap-1 px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-bold shadow-md active:scale-95 transition-all cursor-pointer"
+                        >
+                            <span>✓</span>
+                            <span>{t("customers.save") || "Save"}</span>
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setIsEditing(false);
+                                setEditForm({
+                                    name: customer.name || "",
+                                    phone: customer.phone || "",
+                                    address: customer.address || "",
+                                    due_date: customer.due_date || "",
+                                    place_id: customer.place_id ?? "",
+                                    loan_amount: customer.loan_amount ?? "",
+                                    loan_date: customer.loan_date || ""
+                                });
+                            }}
+                            className="flex items-center gap-1 px-2.5 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 rounded-lg text-xs font-semibold active:scale-95 transition-all cursor-pointer"
+                        >
+                            <span>✕</span>
+                            <span>{t("customers.cancel") || "Cancel"}</span>
+                        </button>
+                    </div>
+                ) : (
+                    <button
+                        type="button"
+                        onClick={() => setIsEditing(true)}
+                        className="flex items-center gap-1.5 px-3 py-1 bg-sky-600/20 hover:bg-sky-600/30 text-sky-400 hover:text-white border border-sky-500/40 rounded-lg text-xs font-bold shadow-sm active:scale-95 transition-all cursor-pointer"
+                        title="Edit Customer"
+                    >
+                        <span>✏️</span>
+                        <span>{t("customers.edit_customer") || "Edit"}</span>
+                    </button>
+                )}
+            </div>
+
     {isEditing ? (
 
         <div className="space-y-4">
@@ -455,7 +568,7 @@ function CustomerProfileDrawer({
                     <div className="mt-2 text-xs bg-slate-900/90 border border-slate-700/70 rounded-xl p-3 space-y-1.5 shadow-inner">
                         <div className="flex justify-between text-slate-400">
                             <span>தினசரி தவணை:</span>
-                            <strong className="text-blue-400 font-semibold">₹{Math.round(Number(editForm.loan_amount) / 100)}/நாள்</strong>
+                            <strong className="text-blue-400 font-semibold">₹{calculateDLDailyInstallment(editForm.loan_amount)}/நாள்</strong>
                         </div>
                         <div className="flex justify-between text-slate-400">
                             <span>கையில் கொடுப்பது:</span>
@@ -873,50 +986,133 @@ function CustomerProfileDrawer({
             shadow-lg
         ">
 
-            <h3 className="text-lg font-semibold text-white mb-4">
-                💳 {t("customers.recent_payments")}
-            </h3>
+            <div className="flex items-center justify-between mb-3">
+                <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                    <span>💳</span>
+                    <span>{t("customers.recent_payments")}</span>
+                    <span className="text-xs bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded-full border border-slate-700">
+                        {sortedTransactions.length}
+                    </span>
+                </h3>
 
-            {customer.transactions.length === 0 ? (
+                {sortedTransactions.length > 1 && (
+                    <button
+                        type="button"
+                        onClick={() => setSortNewestFirst(!sortNewestFirst)}
+                        className="flex items-center gap-1.5 text-[11px] font-semibold px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white border border-slate-700 transition cursor-pointer"
+                        title={sortNewestFirst ? "Currently Newest First (Click for Oldest First)" : "Currently Oldest First (Click for Newest First)"}
+                    >
+                        <span>{sortNewestFirst ? "📅 Newest First ↓" : "📅 Oldest First ↑"}</span>
+                    </button>
+                )}
+            </div>
 
-                <div className="text-slate-400 text-sm">
+            {sortedTransactions.length === 0 ? (
+                <div className="text-slate-400 text-sm py-2">
                     {t("customers.no_payments")}
                 </div>
-
             ) : (
+                <div className="space-y-2">
+                    {sortedTransactions.map((txn, index) => {
+                        const isEditingThis = editingTxId === txn.id;
 
-                (customer.transactions || [])
-                .slice()
-                .reverse()
-                .map((txn, index) => (
+                        if (isEditingThis) {
+                            return (
+                                <div
+                                    key={txn.id || index}
+                                    className="p-3 bg-slate-900/90 border border-emerald-500/50 rounded-xl space-y-2.5 shadow-inner"
+                                >
+                                    <div className="flex items-center justify-between text-xs text-emerald-400 font-semibold">
+                                        <span>✏️ Edit Payment</span>
+                                        <span className="text-slate-500 font-mono text-[10px]">#{txn.id}</span>
+                                    </div>
+                                    <div className="grid grid-cols-2 gap-2">
+                                        <div>
+                                            <label className="text-[11px] font-medium text-slate-400 block mb-1">
+                                                Amount (₹)
+                                            </label>
+                                            <input
+                                                type="number"
+                                                value={editTxAmount}
+                                                onChange={(e) => setEditTxAmount(e.target.value)}
+                                                className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-sm font-bold focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                                autoFocus
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="text-[11px] font-medium text-slate-400 block mb-1">
+                                                Payment Date
+                                            </label>
+                                            <input
+                                                type="date"
+                                                value={editTxDate}
+                                                onChange={(e) => setEditTxDate(e.target.value)}
+                                                className="w-full bg-[#0f172a] border border-slate-700 rounded-lg px-2.5 py-1.5 text-white text-xs color-scheme-dark focus:outline-none focus:ring-1 focus:ring-emerald-500"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div className="flex justify-end gap-2 pt-1">
+                                        <button
+                                            type="button"
+                                            onClick={cancelEditTx}
+                                            disabled={savingTx}
+                                            className="px-3 py-1 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition cursor-pointer"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={() => handleSaveTx(txn.id)}
+                                            disabled={savingTx}
+                                            className="px-3.5 py-1 bg-emerald-600 hover:bg-emerald-500 disabled:opacity-50 text-white rounded-lg text-xs font-bold shadow transition flex items-center gap-1 cursor-pointer"
+                                        >
+                                            {savingTx ? (
+                                                <span className="h-3 w-3 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                                            ) : (
+                                                "✓ Save"
+                                            )}
+                                        </button>
+                                    </div>
+                                </div>
+                            );
+                        }
 
-                    <div
-                        key={index}
-                        className="
-                        flex
-                        justify-between
-                        items-center
-                        py-3
-                        border-b
-                        border-slate-800
-                        last:border-0
-                        "
-                    >
-                     <>
-                        <span className="font-semibold text-emerald-400">
-                            ₹{txn.amount_paid}
-                        </span>
+                        return (
+                            <div
+                                key={txn.id || index}
+                                className="flex justify-between items-center py-2.5 px-3 rounded-xl bg-slate-900/40 border border-slate-800/80 hover:border-slate-700 transition group"
+                            >
+                                <div className="flex items-center gap-3">
+                                    <span className="font-bold text-emerald-400 text-base">
+                                        ₹{txn.amount_paid}
+                                    </span>
+                                    <span className="text-xs text-slate-400 font-medium">
+                                        {txn.payment_date
+                                            ? new Date(txn.payment_date).toLocaleDateString("en-IN", {
+                                                  day: "2-digit",
+                                                  month: "2-digit",
+                                                  year: "numeric",
+                                              })
+                                            : "-"}
+                                    </span>
+                                </div>
 
-                        <span className="text-sm text-slate-400">
-                            {new Date(txn.payment_date).toLocaleDateString("en-IN")}
-                        </span>
-                    </>   
-                    </div>
-
-            ))
-
+                                {txn.id && (
+                                    <button
+                                        type="button"
+                                        onClick={() => startEditTx(txn)}
+                                        className="text-xs text-slate-400 hover:text-white px-2 py-1 rounded-lg bg-slate-800/80 hover:bg-slate-700 border border-slate-700/60 transition flex items-center gap-1 opacity-75 group-hover:opacity-100 cursor-pointer"
+                                        title="Edit this payment"
+                                    >
+                                        <span>✏️</span>
+                                        <span>Edit</span>
+                                    </button>
+                                )}
+                            </div>
+                        );
+                    })}
+                </div>
             )}
-
         </div>
         )}
         <div className="mt-2 space-y-2">
