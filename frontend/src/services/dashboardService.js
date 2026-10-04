@@ -1,7 +1,10 @@
 import api from "./api";
 
-export const getDashboard = async () => {
-    const response = await api.get("/transactions/dashboard");
+const getLocalDate = () => new Date().toLocaleDateString("en-CA");
+
+export const getDashboard = async (date) => {
+    const d = date || getLocalDate();
+    const response = await api.get(`/transactions/dashboard?date=${d}`);
     return response.data;
 };
 
@@ -24,8 +27,9 @@ export async function getCashFlow(date) {
     return res.data;
 }
 
-export async function getTodayCashFlow() {
-    const response = await api.get("/transactions/cash-flow");
+export async function getTodayCashFlow(date) {
+    const d = date || getLocalDate();
+    const response = await api.get(`/transactions/cash-flow?date=${d}`);
     return response.data;
 }
 
@@ -49,7 +53,8 @@ export async function getLoansByDate(date) {
     return response.data;
 }
 
-export async function getTodayLoans() {
-    const response = await api.get("/transactions/loans-by-date");
+export async function getTodayLoans(date) {
+    const d = date || getLocalDate();
+    const response = await api.get(`/transactions/loans-by-date?date=${d}`);
     return response.data;
 }

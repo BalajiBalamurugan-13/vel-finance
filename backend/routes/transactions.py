@@ -1,12 +1,25 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
+from typing import Optional
 from backend.db import supabase
 from backend.schemas import TransactionCreate, InvestmentCreate, TransactionUpdate
-from datetime import date
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 from time import perf_counter
 from backend.routes.customers import get_closed_customer_ids
 from backend.routes.places import get_place_sessions
 
+
+# Indian Standard Time (IST, UTC+5:30) for accurate midnight rollover in production
+IST = timezone(timedelta(hours=5, minutes=30))
+
+
+def get_ist_today() -> date:
+    """Returns today's date in Indian Standard Time (IST, UTC+5:30)."""
+    return datetime.now(IST).date()
+
+
+def get_ist_today_str() -> str:
+    """Returns today's date string YYYY-MM-DD in Indian Standard Time (IST)."""
+    return datetime.now(IST).strftime("%Y-%m-%d")
 
 
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
@@ -122,7 +135,7 @@ def get_customer_balance(customer_id: int):
     balance = (customer.get("loan_amount") or 0) - total_paid
 
     # 5. Overdue calculation
-    today = date.today()
+    today = get_ist_today()
 
     due_date_raw = customer.get("due_date")
 
@@ -181,8 +194,8 @@ def get_customer_balance(customer_id: int):
 }
 
 @router.get("/daily-summary")
-def get_daily_summary():
-    today = date.today().isoformat()
+def get_daily_summary(selected_date: Optional[str] = None):
+    today = selected_date or get_ist_today_str()
 
     try:
         # 1. Get today's transactions
@@ -621,8 +634,8 @@ def update_transaction(transaction_id: int, data: TransactionUpdate):
         raise HTTPException(status_code=500, detail=str(e))
 
 
-def get_not_paid_logic():
-    today = date.today().isoformat()
+def get_not_paid_logic(selected_date: Optional[str] = None):
+    today = selected_date or get_ist_today_str()
 
     customers = supabase.table("customers") \
         .select("customer_id,name,address,loan_given,ready_to_close") \
@@ -741,7 +754,7 @@ def get_loans_by_date_logic(selected_date: str):
 
 
 def get_gaps_logic():
-    today = date.today()
+    today = get_ist_today()
 
     customers = supabase.table("customers") \
         .select("customer_id,name,loan_given,ready_to_close") \
@@ -795,34 +808,33 @@ def get_gaps_logic():
 
     return gaps
 @router.get("/dashboard")
-def get_dashboard():
+def get_dashboard(date: Optional[str] = Query(None)):
+    target_date = date or get_ist_today_str()
 
     start = perf_counter()
 
     t = perf_counter()
-    summary = get_daily_summary()
+    summary = get_daily_summary(target_date)
     print("Summary:", perf_counter() - t)
 
     t = perf_counter()
-    cash = get_cash_balance()
+    cash = get_cash_balance(target_date)
     print("Cash:", perf_counter() - t)
 
     t = perf_counter()
-    not_paid = get_not_paid_logic()
+    not_paid = get_not_paid_logic(target_date)
     print("Not Paid:", perf_counter() - t)
 
     t = perf_counter()
-    today_collections = get_collections_by_date(
-        date.today().isoformat()
-    )
+    today_collections = get_collections_by_date(target_date)
     print("Collections:", perf_counter() - t)
 
     t = perf_counter()
-    today_expenses = get_today_expenses()
+    today_expenses = get_today_expenses(target_date)
     print("Expenses:", perf_counter() - t)
 
     t = perf_counter()
-    today_loans = get_loans_by_date_logic(date.today().isoformat())
+    today_loans = get_loans_by_date_logic(target_date)
     print("Loans:", perf_counter() - t)
 
     print("TOTAL:", perf_counter() - start)
@@ -1103,7 +1115,7 @@ def profit_by_category():
         return {"error": str(e)}
     
 @router.get("/cash-balance")
-def get_cash_balance():
+def get_cash_balance(target_date: Optional[str] = None):
 
     try:
 
@@ -1126,7 +1138,7 @@ def get_cash_balance():
                 break
             page += 1
 
-        today_str = date.today().isoformat()
+        today_str = target_date or get_ist_today_str()
         operational_data = [
             x for x in data
             if not x.get("date") or str(x.get("date"))[:10] <= today_str
@@ -1251,8 +1263,8 @@ def expected_profit():
     except Exception as e:
         return {"error": str(e)}
     
-def get_today_expenses():
-    today = date.today().isoformat()
+def get_today_expenses(selected_date: Optional[str] = None):
+    today = selected_date or get_ist_today_str()
 
     try:
         res = (
@@ -1493,9 +1505,9 @@ def cash_flow(selected_date: str):
 
 
 @router.get("/cash-flow")
-def get_today_cash_flow():
+def get_today_cash_flow(date: Optional[str] = Query(None)):
 
-    return calculate_cash_flow(date.today().isoformat())
+    return calculate_cash_flow(date or get_ist_today_str())
 
 
 @router.get("/loans-by-date/{selected_date}")
@@ -1504,8 +1516,8 @@ def loans_by_date(selected_date: str):
 
 
 @router.get("/loans-by-date")
-def loans_today():
-    return get_loans_by_date_logic(date.today().isoformat())
+def loans_today(date: Optional[str] = Query(None)):
+    return get_loans_by_date_logic(date or get_ist_today_str())
 
 
 # ============================================================
@@ -1567,9 +1579,9 @@ def complete_migration():
             detail=f"Failed to calculate balance: {e}",
         )
 
-    now = datetime.utcnow().isoformat() + "Z"
-    today_str = date.today().isoformat()
-    yesterday_str = (date.today() - timedelta(days=1)).isoformat()
+    now = datetime.now(timezone.utc).isoformat() + "Z"
+    today_str = get_ist_today_str()
+    yesterday_str = (get_ist_today() - timedelta(days=1)).strftime("%Y-%m-%d")
     offset_date = f"{yesterday_str}T23:59:59"
 
     # If already exactly 0, nothing to offset

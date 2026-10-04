@@ -1,7 +1,10 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
+from typing import Optional
 from backend.db import supabase
 from backend.schemas import ExpenseCreate
-from datetime import date
+from datetime import datetime, timezone, timedelta
+
+IST = timezone(timedelta(hours=5, minutes=30))
 
 router = APIRouter(prefix="/expenses", tags=["Expenses"])
 
@@ -28,9 +31,9 @@ def add_expense(data: ExpenseCreate):
 
 
 @router.get("/today")
-def get_today_expense():
+def get_today_expense(date: Optional[str] = Query(None)):
 
-    today = date.today().isoformat()
+    today = date or datetime.now(IST).strftime("%Y-%m-%d")
 
     res = supabase.table("expenses") \
         .select("*") \
