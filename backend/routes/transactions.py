@@ -518,7 +518,7 @@ def delete_transaction(transaction_id: int):
         pdate = tx.get("payment_date")
         amt = tx.get("amount_paid")
 
-        # Delete matching cashbook entry (matching date prefix e.g. 2026-10-07%)
+        # Delete matching cashbook entry
         try:
             cb_match = (
                 supabase.table("cashbook")
@@ -526,7 +526,8 @@ def delete_transaction(transaction_id: int):
                 .eq("type", "credit")
                 .eq("source", "collection")
                 .eq("reference_id", cid)
-                .like("date", f"{pdate}%")
+                .gte("date", f"{pdate}T00:00:00")
+                .lte("date", f"{pdate}T23:59:59")
                 .limit(1)
                 .execute()
             )
@@ -596,8 +597,8 @@ def update_transaction(transaction_id: int, data: TransactionUpdate):
                 .eq("type", "credit")
                 .eq("source", "collection")
                 .eq("reference_id", str(cid))
-                .eq("amount", old_amt)
-                .like("date", f"{old_date}%")
+                .gte("date", f"{old_date}T00:00:00")
+                .lte("date", f"{old_date}T23:59:59")
                 .limit(1)
                 .execute()
             )
@@ -605,17 +606,18 @@ def update_transaction(transaction_id: int, data: TransactionUpdate):
                 cb_id = cb_res.data[0]["id"]
                 supabase.table("cashbook").update({
                     "amount": new_amt,
-                    "date": new_date
+                    "date": f"{new_date}T00:00:00"
                 }).eq("id", cb_id).execute()
             else:
-                # Fallback: match by reference_id and old_date
+                # Fallback: match by reference_id and old_date without exact amount
                 fallback_cb = (
                     supabase.table("cashbook")
                     .select("id")
                     .eq("type", "credit")
                     .eq("source", "collection")
                     .eq("reference_id", str(cid))
-                    .like("date", f"{old_date}%")
+                    .gte("date", f"{old_date}T00:00:00")
+                    .lte("date", f"{old_date}T23:59:59")
                     .limit(1)
                     .execute()
                 )
@@ -623,7 +625,7 @@ def update_transaction(transaction_id: int, data: TransactionUpdate):
                     cb_id = fallback_cb.data[0]["id"]
                     supabase.table("cashbook").update({
                         "amount": new_amt,
-                        "date": new_date
+                        "date": f"{new_date}T00:00:00"
                     }).eq("id", cb_id).execute()
         except Exception as cb_err:
             print("Cashbook sync warning:", cb_err)
