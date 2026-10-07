@@ -107,6 +107,10 @@ export default function DailyCollection() {
 
       toast.success(`₹${amt} ${t("daily_collection.paid_badge")}`);
 
+      // Extract real transaction ID from backend response (Supabase returns array or object)
+      const insertedTx = Array.isArray(res) ? res[0] : res;
+      const realTxId = insertedTx?.id || null;
+
       // Optimistically update local sheet data
       setSheetData((prev) => {
         const updatedCusts = prev.customers.map((c) => {
@@ -114,7 +118,7 @@ export default function DailyCollection() {
             return {
               ...c,
               today_paid: (c.today_paid || 0) + amt,
-              today_tx_id: res?.id || c.today_tx_id || Date.now(),
+              today_tx_id: realTxId || c.today_tx_id,
               balance: Math.max(0, c.balance - amt),
             };
           }
@@ -164,19 +168,36 @@ export default function DailyCollection() {
 
   // Undo / Delete payment
   async function handleUndo(customer) {
-    if (!customer.today_tx_id) {
-      // Reload sheet if tx id missing
-      loadSheet(selectedDate);
-      return;
-    }
-
     if (!window.confirm(`${customer.name} - ₹${customer.today_paid} ${t("daily_collection.undo")}?`)) {
       return;
     }
 
     setSubmittingCid(customer.customer_id);
     try {
-      await deletePayment(customer.today_tx_id);
+      let txIdToDelete = customer.today_tx_id;
+
+      // Fallback: If transaction ID is missing or not a database integer, lookup today's transaction
+      if (!txIdToDelete || typeof txIdToDelete !== "number" || txIdToDelete > 100000000000) {
+        try {
+          const freshDetails = await getCustomerDetails(customer.customer_id);
+          const todayTxn = (freshDetails?.transactions || []).find(
+            (t) => t.payment_date === selectedDate
+          );
+          if (todayTxn?.id) {
+            txIdToDelete = todayTxn.id;
+          }
+        } catch (lookupErr) {
+          console.warn("Could not lookup transaction by customer:", lookupErr);
+        }
+      }
+
+      if (!txIdToDelete) {
+        toast.error("Could not find transaction to undo. Reloading...");
+        await loadSheet(selectedDate);
+        return;
+      }
+
+      await deletePayment(txIdToDelete);
       toast.info(t("daily_collection.undo") + " " + t("common.success"));
 
       // Refresh sheet to ensure balances and cashbook are perfectly sync'd
@@ -684,11 +705,11 @@ export default function DailyCollection() {
                           type="button"
                           onClick={() => handleUndo(c)}
                           disabled={isSubmitting}
-                          className="ml-2 text-slate-400 hover:text-red-400 text-xs flex items-center gap-1 transition p-1 hover:bg-red-950/40 rounded"
+                          className="ml-2 text-slate-300 hover:text-red-400 active:text-red-400 text-xs flex items-center gap-1.5 transition px-2.5 py-1.5 hover:bg-red-950/40 active:bg-red-950/60 rounded-lg touch-manipulation active:scale-95"
                           title={t("daily_collection.undo")}
                         >
-                          <FiRotateCcw size={13} />
-                          <span className="text-[11px]">{t("daily_collection.undo")}</span>
+                          <FiRotateCcw size={14} />
+                          <span className="text-[11px] font-semibold">{t("daily_collection.undo")}</span>
                         </button>
                       </div>
                     ) : (

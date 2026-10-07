@@ -22,6 +22,13 @@ def get_ist_today_str() -> str:
     return datetime.now(IST).strftime("%Y-%m-%d")
 
 
+def resolve_date_str(d: Optional[str] = None) -> str:
+    """Safely validates and extracts YYYY-MM-DD date string, defaulting to IST today."""
+    if isinstance(d, str) and len(d.strip()) == 10:
+        return d.strip()
+    return get_ist_today_str()
+
+
 router = APIRouter(prefix="/transactions", tags=["Transactions"])
 
 
@@ -195,7 +202,7 @@ def get_customer_balance(customer_id: int):
 
 @router.get("/daily-summary")
 def get_daily_summary(selected_date: Optional[str] = None):
-    today = selected_date or get_ist_today_str()
+    today = resolve_date_str(selected_date)
 
     try:
         # 1. Get today's transactions
@@ -504,28 +511,51 @@ def delete_transaction(transaction_id: int):
             .execute()
         )
         if not tx_res.data:
-            return {"error": "Transaction not found"}
+            raise HTTPException(status_code=404, detail="Transaction not found")
 
         tx = tx_res.data[0]
         cid = str(tx.get("customer_id"))
         pdate = tx.get("payment_date")
         amt = tx.get("amount_paid")
 
-        # Delete cashbook entry matching this collection
-        supabase.table("cashbook").delete().match({
-            "type": "credit",
-            "source": "collection",
-            "reference_id": cid,
-            "date": pdate,
-            "amount": amt
-        }).execute()
+        # Delete matching cashbook entry (matching date prefix e.g. 2026-10-07%)
+        try:
+            cb_match = (
+                supabase.table("cashbook")
+                .select("id")
+                .eq("type", "credit")
+                .eq("source", "collection")
+                .eq("reference_id", cid)
+                .like("date", f"{pdate}%")
+                .limit(1)
+                .execute()
+            )
+            if cb_match.data:
+                cb_id = cb_match.data[0]["id"]
+                supabase.table("cashbook").delete().eq("id", cb_id).execute()
+        except Exception as cb_err:
+            print("Cashbook delete error:", cb_err)
 
         # Delete transaction
         supabase.table("transactions").delete().eq("id", transaction_id).execute()
 
+        # Update customer ready_to_close flag if applicable
+        try:
+            if cid and cid.isdigit():
+                cust_res = supabase.table("customers").select("loan_amount").eq("customer_id", int(cid)).execute()
+                if cust_res.data:
+                    loan_amt = cust_res.data[0].get("loan_amount") or 0
+                    all_tx = supabase.table("transactions").select("amount_paid").eq("customer_id", int(cid)).execute()
+                    total_paid = sum(t.get("amount_paid", 0) or 0 for t in (all_tx.data or []))
+                    supabase.table("customers").update({"ready_to_close": total_paid >= loan_amt}).eq("customer_id", int(cid)).execute()
+        except Exception as cust_err:
+            print("Customer ready_to_close update warning:", cust_err)
+
         return {"message": "Transaction deleted successfully"}
+    except HTTPException:
+        raise
     except Exception as e:
-        return {"error": str(e)}
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @router.put("/update/{transaction_id}")
@@ -635,7 +665,7 @@ def update_transaction(transaction_id: int, data: TransactionUpdate):
 
 
 def get_not_paid_logic(selected_date: Optional[str] = None):
-    today = selected_date or get_ist_today_str()
+    today = resolve_date_str(selected_date)
 
     customers = supabase.table("customers") \
         .select("customer_id,name,address,loan_given,ready_to_close") \
@@ -809,7 +839,7 @@ def get_gaps_logic():
     return gaps
 @router.get("/dashboard")
 def get_dashboard(date: Optional[str] = Query(None)):
-    target_date = date or get_ist_today_str()
+    target_date = resolve_date_str(date)
 
     start = perf_counter()
 
@@ -838,6 +868,17 @@ def get_dashboard(date: Optional[str] = Query(None)):
     print("Loans:", perf_counter() - t)
 
     print("TOTAL:", perf_counter() - start)
+
+    # Defensive fallback: if summary had an error or zeroed out, reconcile with today_collections
+    if not isinstance(summary, dict) or "error" in summary or summary.get("total_collected") is None:
+        calc_collected = sum(c.get("amount_paid", 0) for c in today_collections) if isinstance(today_collections, list) else 0
+        calc_expense = today_expenses.get("total_expense", 0) if isinstance(today_expenses, dict) else 0
+        summary = {
+            "date": target_date,
+            "total_collected": calc_collected,
+            "total_expense": calc_expense,
+            "net_amount": calc_collected - calc_expense
+        }
 
     return {
         "summary": summary,
@@ -1264,7 +1305,7 @@ def expected_profit():
         return {"error": str(e)}
     
 def get_today_expenses(selected_date: Optional[str] = None):
-    today = selected_date or get_ist_today_str()
+    today = resolve_date_str(selected_date)
 
     try:
         res = (
@@ -1507,7 +1548,7 @@ def cash_flow(selected_date: str):
 @router.get("/cash-flow")
 def get_today_cash_flow(date: Optional[str] = Query(None)):
 
-    return calculate_cash_flow(date or get_ist_today_str())
+    return calculate_cash_flow(resolve_date_str(date))
 
 
 @router.get("/loans-by-date/{selected_date}")
@@ -1517,7 +1558,7 @@ def loans_by_date(selected_date: str):
 
 @router.get("/loans-by-date")
 def loans_today(date: Optional[str] = Query(None)):
-    return get_loans_by_date_logic(date or get_ist_today_str())
+    return get_loans_by_date_logic(resolve_date_str(date))
 
 
 # ============================================================

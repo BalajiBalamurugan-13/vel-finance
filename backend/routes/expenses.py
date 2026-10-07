@@ -33,7 +33,7 @@ def add_expense(data: ExpenseCreate):
 @router.get("/today")
 def get_today_expense(date: Optional[str] = Query(None)):
 
-    today = date or datetime.now(IST).strftime("%Y-%m-%d")
+    today = date.strip() if (isinstance(date, str) and len(date.strip()) == 10) else datetime.now(IST).strftime("%Y-%m-%d")
 
     res = supabase.table("expenses") \
         .select("*") \

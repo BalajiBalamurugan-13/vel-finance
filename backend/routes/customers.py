@@ -249,16 +249,16 @@ def get_customers():
 @router.delete("/delete/{customer_id}")
 def delete_customer(customer_id: int):
     try:
-        # delete transactions first
+        # Note: We do NOT delete cashbook entries here. Historical ledger entries
+        # represent real physical cash received/disbursed and must remain intact
+        # so Available Cash is not corrupted when cleaning up customer contacts.
+
+        # delete transactions
         supabase.table("transactions") \
             .delete() \
             .eq("customer_id", customer_id) \
             .execute()
-        # delete cashbook entries
-        supabase.table("cashbook") \
-            .delete() \
-            .eq("reference_id", str(customer_id)) \
-            .execute()
+
         # delete customer
         res = supabase.table("customers") \
             .delete() \

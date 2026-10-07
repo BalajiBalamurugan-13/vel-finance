@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { FiCheckSquare } from "react-icons/fi";
 import { useLanguage } from "../context/LanguageContext";
-import { getDashboard, getTodayCashFlow, getMigrationStatus } from "../services/dashboardService";
+import { getDashboard, getTodayCashFlow } from "../services/dashboardService";
 import CollectionDrawer from "../components/Dashboard/CollectionDrawer";
 import DashboardMetrics from "../components/Dashboard/DashboardMetrics";
 import NotPaidSection from "../components/Dashboard/NotPaidSection";
@@ -12,7 +12,6 @@ import ExpenseDrawer from "../components/Dashboard/ExpenseDrawer";
 import NetDrawer from "../components/Dashboard/NetDrawer";
 import CashDrawer from "../components/Dashboard/CashDrawer";
 import InvestmentDrawer from "../components/Dashboard/InvestmentDrawer";
-import MigrationBanner from "../components/Dashboard/MigrationBanner";
 import LoanGivenDrawer from "../components/Dashboard/LoanGivenDrawer";
 import CustomerProfileDrawer from "../components/Customer/CustomerProfileDrawer";
 import { getCustomerDetails } from "../services/customerService";
@@ -23,13 +22,11 @@ function Dashboard() {
     const [dashboardData, setDashboardData] = useState(null);
     const [selectedCard, setSelectedCard] = useState(null);
     const [cashFlow, setCashFlow] = useState(null);
-    const [migrationStatus, setMigrationStatus] = useState(null);
     const [selectedCustomerId, setSelectedCustomerId] = useState(null);
     const [selectedCustomer, setSelectedCustomer] = useState(null);
 
     useEffect(() => {
       loadDashboard();
-      loadMigrationStatus();
     }, []);
 
     async function loadDashboard() {
@@ -37,24 +34,10 @@ function Dashboard() {
       setDashboardData(data);
     }
 
-    async function loadMigrationStatus() {
-      try {
-        const status = await getMigrationStatus();
-        setMigrationStatus(status);
-      } catch {
-        setMigrationStatus({ completed: false });
-      }
-    }
-
     async function openCashDrawer() {
         const flow = await getTodayCashFlow();
         setCashFlow(flow);
         setSelectedCard("cash");
-    }
-
-    async function handleMigrationComplete() {
-      await loadDashboard();
-      await loadMigrationStatus();
     }
 
     async function handleInvestmentSuccess() {
@@ -92,14 +75,6 @@ function Dashboard() {
       </div>
 
       <StatusBanner status="online" />
-
-      {/* Migration Banner — only before migration is completed */}
-      {migrationStatus && !migrationStatus.completed && (
-        <MigrationBanner
-          onMigrationComplete={handleMigrationComplete}
-          currentBalance={dashboardData?.cash?.cash_balance}
-        />
-      )}
 
       <DashboardMetrics
             summary={dashboardData.summary}
